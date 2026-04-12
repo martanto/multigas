@@ -14,6 +14,7 @@ license = {file = "LICENSE"}
 keywords = ["multigas", "volcano", "gas", "sensor", "monitoring"]
 requires-python = ">=3.11"
 dependencies = [
+    "joblib>=1.5.3",
     "loguru>=0.7.3",
     "numpy>=2.4.4",
     "openpyxl>=3.1.5",
@@ -39,6 +40,7 @@ dev = [
     "notebook",
     "pytest>=9.0.2",
     "ipywidgets>=8.1.8",
+    "pandas-stubs>=3.0.0.260204",
 ]
 
 [tool.uv]
