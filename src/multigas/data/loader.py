@@ -1,6 +1,5 @@
 """Data loading with caching and normalization."""
 
-import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +9,7 @@ import pandas as pd
 from multigas.logging import logger
 from multigas.core.types import DatasetType, LoadedDataset
 from multigas.utils.path import ensure_dir
+from multigas.utils.cache import get_cache_path
 from multigas.core.exceptions import CacheError, LoaderError
 
 
@@ -231,44 +231,6 @@ class DataLoader:
 
         return df
 
-    @staticmethod
-    def _get_cache_key(file_path: Path) -> str:
-        """Generate a cache key from the absolute file path and its mtime.
-
-        The key is an MD5 hex digest of ``"<absolute_path>_<mtime>"``, so it
-        changes automatically whenever the source file is modified.
-
-        Args:
-            file_path: Path to the source file.
-
-        Returns:
-            Hex-encoded MD5 digest string used as the cache filename stem.
-
-        Example:
-            >>> key = DataLoader._get_cache_key(Path("data/site_a.csv"))
-            >>> len(key)
-            32
-        """
-        mtime = file_path.stat().st_mtime
-        key_string = f"{file_path.absolute()}_{mtime}"
-        return hashlib.md5(key_string.encode()).hexdigest()
-
-    def _get_cache_path(self, cache_key: str) -> Path:
-        """Resolve the on-disk path for a given cache key.
-
-        Args:
-            cache_key: Hex digest string returned by ``_get_cache_key``.
-
-        Returns:
-            Absolute path to the ``.pkl`` cache file inside ``cache_dir``.
-
-        Example:
-            >>> loader = DataLoader(cache_dir="/tmp/cache")
-            >>> loader._get_cache_path("abc123")
-            PosixPath('/tmp/cache/abc123.pkl')
-        """
-        return self.cache_dir / f"{cache_key}.pkl"
-
     def _load_from_cache(self, file_path: Path) -> pd.DataFrame | None:
         """Load a DataFrame from cache if the cache entry is still valid.
 
@@ -292,8 +254,7 @@ class DataLoader:
             >>> df is None  # cache miss on first run
             True
         """
-        cache_key = self._get_cache_key(file_path)
-        cache_path = self._get_cache_path(cache_key)
+        cache_path = get_cache_path(self.cache_dir, file_path)
 
         if not cache_path.exists():
             return None
@@ -340,8 +301,7 @@ class DataLoader:
             >>> loader = DataLoader(cache_dir="/tmp/cache")
             >>> loader._save_to_cache(Path("data/site_a.csv"), df)
         """
-        cache_key = self._get_cache_key(file_path)
-        cache_path = self._get_cache_path(cache_key)
+        cache_path = get_cache_path(self.cache_dir, file_path)
 
         try:
             cached_data = {
