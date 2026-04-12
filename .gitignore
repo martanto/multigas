@@ -182,7 +182,7 @@ cython_debug/
 
 .claude/
 .cache/
-.output/
+output/
 .logs/
 changelogs/
 tests/
