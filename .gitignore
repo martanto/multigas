@@ -185,6 +185,7 @@ cython_debug/
 .output/
 .logs/
 changelogs/
+tests/
 *.csv
 *.xlsx
 *.png
