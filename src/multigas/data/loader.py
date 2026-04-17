@@ -248,20 +248,21 @@ class DataLoader:
         df = df.replace(["NAN", "NaN", ""], np.nan)
 
         # Convert clearly numeric object columns only.
-        for col in df.columns:
-            if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(
-                df[col]
+        for index, _ in enumerate(df.columns):
+            source = df.iloc[:, index]
+            if pd.api.types.is_object_dtype(source) or pd.api.types.is_string_dtype(
+                source
             ):
-                source = df[col]
-                non_null_count = source.notna().sum()
+                non_null_count = int(source.notna().sum())
 
                 if non_null_count == 0:
                     continue
 
                 converted = pd.to_numeric(source, errors="coerce")
-                converted_non_null_count = converted.notna().sum()
+                converted_series = pd.Series(converted, index=source.index)
+                converted_non_null_count = int(converted_series.notna().sum())
                 if converted_non_null_count == non_null_count:
-                    df[col] = converted
+                    df.isetitem(index, converted_series.to_numpy())
 
         if self.verbose:
             logger.info("DataFrame normalized.")
