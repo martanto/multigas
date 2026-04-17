@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pandas as pd
 
 from multigas.logging import logger
@@ -5,7 +7,7 @@ from multigas.logging import logger
 
 def check_sampling_consistency(
     df: pd.DataFrame,
-    expected_freq: str = "10min",
+    expected_freq: Literal["1s", "2s", "6h", "1min"] = "1min",
     tolerance: str = "1min",
     verbose: bool = False,
 ) -> tuple[bool, pd.DataFrame, pd.DataFrame, int | None]:
@@ -17,8 +19,8 @@ def check_sampling_consistency(
 
     Args:
         df (pd.DataFrame): DataFrame with pd.DatetimeIndex.
-        expected_freq (str, optional): Expected sampling frequency (e.g., "10min", "1H").
-            Defaults to "10min".
+        expected_freq (Literal["1s", "2s", "6h", "1min"], optional):
+            Expected sampling frequency. Defaults to "1min".
         tolerance (str, optional): Tolerance for considering sampling periods as equal
             (e.g., "1min", "30s"). Defaults to "1min".
         verbose (bool, optional): If True, print detailed information about inconsistencies.
@@ -37,7 +39,7 @@ def check_sampling_consistency(
 
     Examples:
         >>> df = pd.DataFrame({"value": [1, 2, 3]},
-        ...                   index=pd.date_range("2025-01-01", periods=3, freq="10min"))
+        ...                   index=pd.date_range("2025-01-01", periods=3, freq="1min"))
         >>> is_consistent, consistent, inconsistent, rate = check_sampling_consistency(df)
         >>> print(is_consistent)
         True
