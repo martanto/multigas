@@ -2,6 +2,8 @@
 
 from importlib.metadata import version
 
+from multigas.data.loader import DataLoader
+
 
 __version__ = version("multigas")
 __author__ = "Martanto"
@@ -17,4 +19,5 @@ __all__ = [
     "__license__",
     "__copyright__",
     "__url__",
+    "DataLoader",
 ]
