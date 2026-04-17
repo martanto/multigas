@@ -138,9 +138,29 @@ class DataLoader:
         """Load a CSV file with automatic TOA5 format detection.
 
         First attempts to parse the file as a Campbell Scientific TOA5 file
-        (skipping the header, units, and sampling rows). Falls back to a
-        standard CSV read if that attempt fails.  The ``TIMESTAMP`` column is
-        promoted to the DataFrame index when present.
+        (detected from the `TOA5` first-line marker and skipping the header,
+        units, and sampling rows). Falls back to a standard CSV read if that
+        attempt fails. The ``TIMESTAMP`` column is promoted to the DataFrame
+        index when present.
+
+        TOA5 header context (LoggerNet format):
+            - Header row includes: file format type, station name, datalogger
+              type, serial number, OS version, DLD name, DLD signature, and
+              table name.
+            - Next rows include field names, units, and processing descriptors.
+            - Data rows are comma-separated records from a single table.
+            - Optional ``TIMESTAMP`` and ``RECORD`` fields may be present.
+
+        TOA5 format reference:
+        https://help.campbellsci.com/loggernet-manual/ln_manual/campbell_scientific_file_formats/toa5.htm
+
+        TOA5 example snippet:
+            "TOA5","CR1000","CR1000","1031","CR1000.Std.00.60","CPU:Test.CR1","4062","Test"
+            "TIMESTAMP","RECORD","batt_volt_Min","PTemp"
+            "TS","RN","Volts","C"
+            "","","Min","Smp"
+            "2004-11-11 15:03:45",0,13.7,24.92
+            "2004-11-11 15:04:00",1,13.7,24.95
 
         Args:
             file_path: Path to the CSV file to load.
@@ -158,32 +178,42 @@ class DataLoader:
             >>> df.index.name
             'TIMESTAMP'
         """
-        # Try to detect if this is a TOA5 file (Campbell Scientific format)
-        # TOA5 files have 4 header rows before data
+        # TOA5 files have a format marker and 4 header rows before data.
+        with file_path.open(mode="r", encoding="utf-8", errors="ignore") as source_file:
+            first_line = source_file.readline()
+        is_toa5 = first_line.startswith("TOA5")
+
         try:
-            # First attempt: assume TOA5 format
-            df = pd.read_csv(
-                file_path,
-                skiprows=[0, 2, 3],  # Skip header, units, sampling rows
-                parse_dates=["TIMESTAMP"],
-                na_values=["NAN", "NaN", ""],
-                low_memory=False,
-            )
+            if is_toa5:
+                df = pd.read_csv(
+                    file_path,
+                    skiprows=[0, 2, 3],  # Skip header, units, sampling rows
+                    na_values=["NAN", "NaN", ""],
+                    low_memory=False,
+                )
+            else:
+                raise ValueError("Non-TOA5 source")
         except (pd.errors.ParserError, ValueError, KeyError):
             logger.info("File is not TOA5 file. Load as standart CSV.")
-            # Fallback: try standard CSV
             df = pd.read_csv(
                 file_path,
-                parse_dates=["TIMESTAMP"],
                 na_values=["NAN", "NaN", ""],
                 low_memory=False,
             )
 
         # Set TIMESTAMP as index
-        if "TIMESTAMP" in df.columns.tolist():
-            df = df.set_index("TIMESTAMP")
-        elif "Timestamp" in df.columns:
-            df = df.rename(columns={"Timestamp": "TIMESTAMP"})
+        timestamp_column = next(
+            (
+                column
+                for column in df.columns
+                if isinstance(column, str) and column.lower() == "timestamp"
+            ),
+            None,
+        )
+        if timestamp_column is not None:
+            if timestamp_column != "TIMESTAMP":
+                df = df.rename(columns={timestamp_column: "TIMESTAMP"})
+            df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"], errors="coerce")
             df = df.set_index("TIMESTAMP")
 
         if self.verbose:
@@ -217,14 +247,21 @@ class DataLoader:
         # Replace "NAN" strings with actual NaN
         df = df.replace(["NAN", "NaN", ""], np.nan)
 
-        # Convert numeric columns
+        # Convert clearly numeric object columns only.
         for col in df.columns:
-            if df[col].dtype == "object":
-                try:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                except Exception as e:
-                    logger.warning(f"Failed to normalize {col}: {e}")
-                    pass
+            if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(
+                df[col]
+            ):
+                source = df[col]
+                non_null_count = source.notna().sum()
+
+                if non_null_count == 0:
+                    continue
+
+                converted = pd.to_numeric(source, errors="coerce")
+                converted_non_null_count = converted.notna().sum()
+                if converted_non_null_count == non_null_count:
+                    df[col] = converted
 
         if self.verbose:
             logger.info("DataFrame normalized.")
@@ -271,7 +308,14 @@ class DataLoader:
                 metadata = cached_data.get("metadata", {})
 
                 # Check if cache is still valid
-                if metadata.get("mtime") == file_path.stat().st_mtime:
+                stat = file_path.stat()
+                mtime_ns = metadata.get("mtime_ns")
+                size = metadata.get("size")
+
+                if mtime_ns is not None and size is not None:
+                    if mtime_ns == stat.st_mtime_ns and size == stat.st_size:
+                        return df
+                elif metadata.get("mtime") == stat.st_mtime:
                     return df
 
             # Cache is invalid
@@ -309,6 +353,8 @@ class DataLoader:
                 "metadata": {
                     "file_path": str(file_path.absolute()),
                     "mtime": file_path.stat().st_mtime,
+                    "mtime_ns": file_path.stat().st_mtime_ns,
+                    "size": file_path.stat().st_size,
                 },
             }
 
