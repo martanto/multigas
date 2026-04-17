@@ -9,7 +9,7 @@ from multigas.utils.validation import check_sampling_consistency, validate_colum
 def test_check_sampling_consistency_allows_two_rows_with_default_frequency() -> None:
     df = pd.DataFrame(
         {"value": [1, 2]},
-        index=pd.date_range("2025-01-01", periods=2, freq="10min"),
+        index=pd.date_range("2025-01-01", periods=2, freq="1min"),
     )
 
     is_consistent, consistent, inconsistent, rate = check_sampling_consistency(df)
@@ -17,21 +17,21 @@ def test_check_sampling_consistency_allows_two_rows_with_default_frequency() -> 
     assert is_consistent is True
     assert len(consistent) == 2
     assert inconsistent.empty
-    assert rate == 600
+    assert rate == 60
 
 
 def test_check_sampling_consistency_uses_total_seconds_for_long_intervals() -> None:
     df = pd.DataFrame(
         {"value": [1, 2]},
-        index=pd.date_range("2025-01-01", periods=2, freq="1D"),
+        index=pd.date_range("2025-01-01", periods=2, freq="6h"),
     )
 
     is_consistent, _, _, rate = check_sampling_consistency(
-        df, expected_freq="1D", tolerance="0s"
+        df, expected_freq="6h", tolerance="0s"
     )
 
     assert is_consistent is True
-    assert rate == 86_400
+    assert rate == 21_600
 
 
 def test_validate_columns_ignores_excluded_columns() -> None:
