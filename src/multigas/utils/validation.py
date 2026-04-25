@@ -6,7 +6,7 @@ from multigas.logging import logger
 def check_sampling_consistency(
     df: pd.DataFrame,
     expected_freq: str = "10min",
-    tolerance: str = "1min",
+    tolerance: str | None = None,
     verbose: bool = False,
 ) -> tuple[bool, pd.DataFrame, pd.DataFrame, int | None]:
     """Check sampling rate consistency and identify inconsistencies.
@@ -19,8 +19,9 @@ def check_sampling_consistency(
         df (pd.DataFrame): DataFrame with pd.DatetimeIndex.
         expected_freq (str, optional): Expected sampling frequency (e.g., "10min", "1H").
             Defaults to "10min".
-        tolerance (str, optional): Tolerance for considering sampling periods as equal
-            (e.g., "1min", "30s"). Defaults to "1min".
+        tolerance (str | None, optional): Tolerance for considering sampling periods as
+            equal (e.g., "1min", "30s"). If None, no tolerance is applied and intervals
+            must match exactly. Defaults to None.
         verbose (bool, optional): If True, print detailed information about inconsistencies.
             Defaults to False.
 
@@ -54,13 +55,14 @@ def check_sampling_consistency(
 
     time_diffs = df.index.to_series().diff()
     expected_diff = pd.Timedelta(expected_freq)
-    tolerance_diff = pd.Timedelta(tolerance)
-    lower_bound = expected_diff - tolerance_diff
-    upper_bound = expected_diff + tolerance_diff
 
-    inconsistent_mask: pd.Series = ~(
-        (time_diffs >= lower_bound) & (time_diffs <= upper_bound)
-    )
+    if tolerance is None:
+        inconsistent_mask: pd.Series = time_diffs != expected_diff
+    else:
+        tolerance_diff = pd.Timedelta(tolerance)
+        lower_bound = expected_diff - tolerance_diff
+        upper_bound = expected_diff + tolerance_diff
+        inconsistent_mask = ~((time_diffs >= lower_bound) & (time_diffs <= upper_bound))
     inconsistent_mask.iloc[0] = False
 
     inconsistent_data = df[inconsistent_mask]
@@ -119,4 +121,30 @@ def validate_columns(
         raise ValueError(
             f"Missing required columns: {missing_columns}. "
             f"Available columns: {df.columns.tolist()}"
+        )
+
+
+def column_is_exists(df: pd.DataFrame, column: str) -> None:
+    """Log an error if a column does not exist in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame to inspect.
+        column (str): Column name to look up.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If ``column`` is not present in ``df``.
+
+    Example:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"a": [1, 2]})
+        >>> column_is_exists(df, "a")  # no error
+    """
+
+    columns: list[str] = df.columns.tolist()
+    if column not in columns:
+        logger.error(
+            f"`{column}` is not a valid column name. Available columns: {columns}"
         )
