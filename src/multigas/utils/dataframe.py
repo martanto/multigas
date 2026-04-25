@@ -1,6 +1,6 @@
 import pandas as pd
 
-from multigas.utils.validation import column_is_exists
+from multigas.utils.validation import validate_dataframe_column
 
 
 def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
@@ -25,7 +25,7 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
     if isinstance(df.index, pd.DatetimeIndex):
         return df
 
-    column_is_exists(df, index_col)
+    validate_dataframe_column(df, index_col)
     df = df.set_index(index_col)
     df.index = pd.to_datetime(df.index)
     df = df.sort_index(ascending=True)

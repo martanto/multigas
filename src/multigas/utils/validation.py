@@ -124,8 +124,24 @@ def validate_columns(
         )
 
 
-def column_is_exists(df: pd.DataFrame, column: str) -> None:
-    """Log an error if a column does not exist in the DataFrame.
+def validate_column(column: str, columns: list[str]) -> None:
+    """Ensure that specified column exists in provided column list.
+
+    Args:
+        column (str): Column to validate.
+        columns (list[str]): List of column names to validate.
+
+    Returns:
+        None
+    """
+    if column not in columns:
+        logger.error(
+            f"`{column}` is not a valid column name. Available columns: {columns}"
+        )
+
+
+def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
+    """Ensure column exists in provided dataframe.
 
     Args:
         df (pd.DataFrame): DataFrame to inspect.
@@ -142,9 +158,5 @@ def column_is_exists(df: pd.DataFrame, column: str) -> None:
         >>> df = pd.DataFrame({"a": [1, 2]})
         >>> column_is_exists(df, "a")  # no error
     """
-
     columns: list[str] = df.columns.tolist()
-    if column not in columns:
-        logger.error(
-            f"`{column}` is not a valid column name. Available columns: {columns}"
-        )
+    validate_column(column, columns)
