@@ -34,13 +34,19 @@ classifiers = [
 [dependency-groups]
 dev = [
     "uv-build",
-    "ruff",
-    "ty",
     "ipykernel",
     "notebook",
-    "pytest>=9.0.2",
-    "ipywidgets>=8.1.8",
+    "ipywidgets",
     "pandas-stubs>=3.0.0.260204",
+    {include-group = "lint"},
+    {include-group = "test"},
+]
+lint = [
+    "ruff",
+    "ty",
+]
+test = [
+  "pytest"
 ]
 
 [tool.uv]
