@@ -1,4 +1,4 @@
-"""Type definitions and enums."""
+"""Shared type aliases, enums, and dataclasses for the multigas package."""
 
 from enum import IntEnum, StrEnum, EnumMeta
 from typing import TypedDict
@@ -7,6 +7,8 @@ from datetime import datetime
 from dataclasses import dataclass
 
 import pandas as pd
+
+from multigas.core.query import Query
 
 
 DateLike = str | datetime | pd.Timestamp
@@ -66,17 +68,22 @@ class DatasetType(StrEnum):
 
 
 @dataclass
-class LoadedDataset:
-    """A loaded DataFrame together with its provenance metadata.
+class MultiGasData(Query):
+    """A loaded DataFrame together with its provenance metadata and query capabilities.
+
+    Extends Query to expose fluent column-selection and filtering methods directly
+    on the loaded dataset.
 
     Attributes:
         df: The loaded (and optionally normalized) DataFrame.
         dataset_type: The type of dataset as declared by the caller.
         source_path: Absolute path to the original source file.
+        index_col: Column name used as the datetime index.
+        verbose: Whether to emit log messages for each operation.
 
     Example:
         >>> result = loader.load(path, DatasetType.ONE_MINUTE)
-        >>> result.df.head()
+        >>> result.select_numeric_columns().df.head()
         >>> result.dataset_type
         <DatasetType.ONE_MINUTE: 'one_minute'>
     """
@@ -84,6 +91,17 @@ class LoadedDataset:
     df: pd.DataFrame
     dataset_type: DatasetType
     source_path: Path
+    index_col: str = "TIMESTAMP"
+    verbose: bool = False
+
+    def __post_init__(self):
+        """Initialise Query with the loaded DataFrame.
+
+        Example:
+            >>> result = MultiGasData(df, DatasetType.ONE_MINUTE, path)
+            >>> result.numeric_columns  # populated by Query.__init__
+        """
+        Query.__init__(self, self.df, self.index_col, self.verbose)
 
     def __repr__(self) -> str:
         """Return a concise string representation of the dataset.
@@ -93,13 +111,15 @@ class LoadedDataset:
 
         Example:
             >>> repr(result)
-            "LoadedDataset(dataset_type=<DatasetType.ONE_MINUTE: 'one_minute'>, ...)"
+            "MultiGasData(dataset_type=<DatasetType.ONE_MINUTE: 'one_minute'>, ..., index_col='TIMESTAMP', drop_empty_columns=False, verbose=False)"
         """
         return (
-            f"LoadedDataset("
+            f"MultiGasData("
             f"dataset_type={self.dataset_type!r}, "
             f"source_path={self.source_path!r}, "
-            f"shape={self.df.shape})"
+            f"shape={self.df.shape}, "
+            f"index_col={self.index_col!r}, "
+            f"verbose={self.verbose!r})"
         )
 
 

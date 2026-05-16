@@ -1,4 +1,8 @@
-"""Custom exceptions"""
+"""Exception hierarchy for the multigas package.
+
+All exceptions derive from :class:`MultigasException` so callers can catch the
+entire family with a single ``except MultigasException`` clause.
+"""
 
 
 class MultigasException(Exception):

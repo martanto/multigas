@@ -125,14 +125,19 @@ def validate_columns(
 
 
 def validate_column(column: str, columns: list[str]) -> None:
-    """Ensure that specified column exists in provided column list.
+    """Ensure that a column name exists in a list of column names.
+
+    Logs an error message when the column is absent. Does not raise; callers
+    that need a hard failure should use :func:`validate_columns` instead.
 
     Args:
-        column (str): Column to validate.
-        columns (list[str]): List of column names to validate.
+        column: Column name to look up.
+        columns: Reference list of available column names.
 
-    Returns:
-        None
+    Example:
+        >>> validate_column("CO2", ["CO2", "SO2"])  # no output
+        >>> validate_column("H2S", ["CO2", "SO2"])
+        # ERROR: `H2S` is not a valid column name. Available columns: ['CO2', 'SO2']
     """
     if column not in columns:
         logger.error(
@@ -156,7 +161,7 @@ def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
     Example:
         >>> import pandas as pd
         >>> df = pd.DataFrame({"a": [1, 2]})
-        >>> column_is_exists(df, "a")  # no error
+        >>> validate_dataframe_column(df, "a")  # no error
     """
     columns: list[str] = df.columns.tolist()
     validate_column(column, columns)

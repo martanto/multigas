@@ -1,3 +1,5 @@
+"""Fluent query interface for pandas DataFrames with a datetime index."""
+
 from typing import Self
 
 import numpy as np
@@ -21,16 +23,31 @@ class Query:
         self,
         df: pd.DataFrame,
         index_col: str | None = None,
-        drop_empty_columns: bool = False,
         verbose: bool = False,
     ):
+        """Initialise Query with a DataFrame and a datetime index column.
+
+        Args:
+            df: DataFrame to wrap. Must contain ``index_col`` as a column or
+                already have a :class:`pd.DatetimeIndex`.
+            index_col: Column name to use as the datetime index. Defaults to
+                ``"TIMESTAMP"``.
+            verbose: Emit informational log messages for each operation.
+                Defaults to ``False``.
+
+        Example:
+            >>> import pandas as pd
+            >>> df = pd.DataFrame({"TIMESTAMP": ["2025-01-01"], "CO2": [1.2]})
+            >>> q = Query(df)
+            >>> isinstance(q.df.index, pd.DatetimeIndex)
+            True
+        """
         index_col: str = index_col or "TIMESTAMP"
         df = to_dateime_index(df, index_col)
         df_original: pd.DataFrame = df.copy()
 
         self.df: pd.DataFrame = df
         self.index_col: str = index_col
-        self.drop_empty_columns: bool = drop_empty_columns
 
         self.df_original: pd.DataFrame = df_original
         self.columns: list[str] = df_original.columns.tolist()
@@ -181,6 +198,27 @@ class Query:
         numeric_column_only: bool = False,
         validate: bool = True,
     ) -> Self:
+        """Select one or more columns by name.
+
+        Sets :attr:`selected_columns` to the given names. Optionally restricts
+        the selection to numeric columns only.
+
+        Args:
+            column_names: A single column name or a list of column names to
+                select.
+            numeric_column_only: If ``True``, further filter the selection to
+                numeric columns via :meth:`select_numeric_columns`. Defaults to
+                ``False``.
+            validate: Raise an error if any column name is not present in the
+                DataFrame. Defaults to ``True``.
+
+        Returns:
+            Self for method chaining.
+
+        Example:
+            >>> q.select_columns(["CO2", "SO2"]).df.columns.tolist()
+            ['CO2', 'SO2']
+        """
         if isinstance(column_names, str):
             column_names = [column_names]
 
@@ -198,6 +236,25 @@ class Query:
     def select_numeric_columns(
         self, column_names: str | list[str] | None = None, validate: bool = True
     ) -> Self:
+        """Select numeric columns, optionally filtered to a given subset.
+
+        When ``column_names`` is ``None``, all numeric columns in the DataFrame
+        are selected. Otherwise, the selection is the intersection of
+        ``column_names`` and :attr:`numeric_columns`.
+
+        Args:
+            column_names: Column name(s) to filter. If ``None``, all numeric
+                columns are selected. Defaults to ``None``.
+            validate: Validate each name against the DataFrame columns before
+                filtering. Defaults to ``True``.
+
+        Returns:
+            Self for method chaining.
+
+        Example:
+            >>> q.select_numeric_columns().selected_columns
+            ['CO2', 'SO2', 'H2S']
+        """
         if column_names is None:
             self.selected_columns = self.numeric_columns
             return self
