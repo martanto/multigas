@@ -1,6 +1,12 @@
 import hashlib
 from pathlib import Path
 
+import joblib
+import pandas as pd
+
+from multigas.logging import logger
+from multigas.core.exceptions import CacheError
+
 
 def get_cache_key(file_path: Path | str) -> str:
     """Generate a cache key from the absolute file path and its mtime.
@@ -43,3 +49,100 @@ def get_cache_path(cache_dir: Path | str, file_path: Path | str) -> Path:
     cache_dir: Path = Path(cache_dir)
     cache_key = get_cache_key(file_path)
     return cache_dir / f"{cache_key}.pkl"
+
+
+def save_cache(
+    df: pd.DataFrame,
+    file_path: Path | str,
+    cache_dir: Path | str,
+    verbose: bool = False,
+) -> None:
+    """Serialise a DataFrame to the on-disk cache.
+
+    Stores the DataFrame alongside file metadata (absolute path, mtime,
+    mtime_ns, size) so that :func:`get_cache_path` can validate staleness on
+    the next read.
+
+    Args:
+        df: Normalised DataFrame to cache.
+        file_path: Path to the original source file. Used to derive the cache
+            key and to record file metadata.
+        cache_dir: Directory where the ``.pkl`` cache file is written.
+        verbose: Log the cache file path after a successful write. Defaults to
+            ``False``.
+
+    Raises:
+        CacheError: If the joblib dump fails for any reason.
+
+    Example:
+        >>> import pandas as pd
+        >>> from pathlib import Path
+        >>> df = pd.DataFrame({"CO2": [1.2, 3.4]})
+        >>> save_cache(df, Path("data/site_a.dat"), Path("/tmp/cache"))
+    """
+    file_path: Path = Path(file_path)
+    cache_path = get_cache_path(cache_dir, file_path)
+
+    try:
+        cached_data = {
+            "dataframe": df,
+            "metadata": {
+                "file_path": str(file_path.absolute()),
+                "mtime": file_path.stat().st_mtime,
+                "mtime_ns": file_path.stat().st_mtime_ns,
+                "size": file_path.stat().st_size,
+            },
+        }
+
+        joblib.dump(cached_data, cache_path, compress=3)
+
+        if verbose:
+            logger.info(f"Cache saved to {cache_path}.")
+
+    except Exception as e:
+        raise CacheError(f"Cache write failed: {e}") from e
+
+
+def load_cache(file_path: Path | str) -> None:
+    """Placeholder for loading a cached DataFrame directly by source path.
+
+    Args:
+        file_path: Path to the original source file whose cache should be
+            loaded.
+
+    Returns:
+        None — not yet implemented.
+    """
+    pass
+
+
+def clear_cache(
+    file_path: Path | str, cache_dir: Path | str, verbose: bool = False
+) -> None:
+    """Delete all ``.pkl`` cache files from a cache directory.
+
+    Iterates over every ``*.pkl`` file in ``cache_dir`` and removes it. The
+    ``file_path`` parameter is accepted for API symmetry but is not used — all
+    cache files in the directory are deleted regardless of source.
+
+    Args:
+        file_path: Unused. Accepted for API symmetry with other cache helpers.
+        cache_dir: Directory whose ``.pkl`` files will be deleted.
+        verbose: Log the total number of deleted files. Defaults to ``False``.
+
+    Example:
+        >>> clear_cache(Path("data/site_a.dat"), Path("/tmp/cache"), verbose=True)
+        # INFO: Deleted 3 cache files.
+    """
+    cache_dir: Path = Path(cache_dir)
+
+    count = 0
+    for cache_file in cache_dir.glob("*.pkl"):
+        try:
+            cache_file.unlink()
+            count += 1
+        except Exception as e:
+            logger.warning(f"Failed to delete cache file {cache_file}: {e}")
+
+    if verbose:
+        logger.info(f"Deleted {count} cache files.")
