@@ -1,4 +1,10 @@
-"""Fluent query interface for pandas DataFrames with a datetime index."""
+"""Fluent query interface for pandas DataFrames with a datetime index.
+
+Defines :class:`Query`, the mixin that :class:`multigas.core.types.MultiGasData`
+inherits from. It normalises the index to a :class:`pandas.DatetimeIndex`,
+tracks the currently selected columns, and exposes chainable helpers for
+column selection and null-checking.
+"""
 
 from typing import Self
 
@@ -11,12 +17,35 @@ from multigas.utils.validation import validate_column
 
 
 class Query:
-    """Extends pandas dataframe fluent query
+    """Fluent column-selection and inspection wrapper around a DataFrame.
+
+    Wraps a :class:`pandas.DataFrame`, promotes ``index_col`` to a
+    :class:`pandas.DatetimeIndex`, and keeps a pristine copy in
+    :attr:`df_original` so :meth:`refresh` can restore it. Column selection
+    is stored in :attr:`selected_columns` and can be composed via
+    :meth:`select_columns` and :meth:`select_numeric_columns`.
 
     Attributes:
-        df (pandas.DataFrame): Normalized pandas dataframe with datetime index.
-        df_original (pandas.DataFrame): Original dataframe with datetime index.
-        index_col (str): Column name for datetime index.
+        df (pd.DataFrame): Working DataFrame with a datetime index.
+        df_original (pd.DataFrame): Untouched copy captured at construction.
+        index_col (str): Column promoted to the datetime index.
+        columns (list[str]): All column names in :attr:`df_original`.
+        selected_columns (list[str]): Currently selected column names.
+        numeric_columns (list[str]): Numeric-dtype columns in :attr:`df`.
+        start_date (pd.Timestamp): Earliest timestamp in :attr:`df`.
+        end_date (pd.Timestamp): Latest timestamp in :attr:`df`.
+        start_date_str (str): :attr:`start_date` formatted as ``YYYY-MM-DD``.
+        end_date_str (str): :attr:`end_date` formatted as ``YYYY-MM-DD``.
+        verbose (bool): Whether operations emit informational log messages.
+
+    Example:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame(
+        ...     {"TIMESTAMP": ["2025-01-01"], "CO2": [1.2], "SO2": [0.3]}
+        ... )
+        >>> q = Query(df)
+        >>> q.select_numeric_columns().selected_columns
+        ['CO2', 'SO2']
     """
 
     def __init__(
@@ -63,10 +92,14 @@ class Query:
 
     @property
     def nan_columns(self) -> list[str]:
-        """Columns with nan values
+        """Names of columns that contain at least one NaN or empty string.
 
         Returns:
-            list[str]: Columns with nan values
+            list[str]: Column names that have any NaN or empty-string value.
+
+        Example:
+            >>> q.nan_columns
+            ['CO2', 'H2S']
         """
         nan_columns: list[str] = []
         for column in self.columns:
@@ -77,10 +110,17 @@ class Query:
 
     @property
     def empty_columns(self) -> list[str]:
-        """Columns with empty values
+        """Names of columns whose values sum to zero (all-zero or all-empty).
+
+        When a selection is active (:attr:`selected_columns` non-empty), only
+        selected columns are inspected; otherwise every column is checked.
 
         Returns:
-            list[str]: Columns with nan or empty values
+            list[str]: Column names that are considered empty.
+
+        Example:
+            >>> q.empty_columns
+            ['unused_channel']
         """
         columns_name = self.columns
         columns_selected: int = len(self.selected_columns)
@@ -97,14 +137,22 @@ class Query:
 
     @staticmethod
     def intersection(first_list: list[str], second_list: list[str]) -> list[str]:
-        """Get intersection of two lists
+        """Return elements of ``first_list`` that also appear in ``second_list``.
+
+        Order is taken from ``first_list``; duplicates in ``first_list`` are
+        preserved. Prefer this over :func:`set.intersection` when the caller
+        needs the original ordering.
 
         Args:
-            first_list (list[str]): first list
-            second_list (list[str]): second list
+            first_list (list[str]): Primary list; result order matches this list.
+            second_list (list[str]): List whose membership is tested against.
 
         Returns:
-            list[str]: Intersection of two lists
+            list[str]: Elements common to both lists, in ``first_list`` order.
+
+        Example:
+            >>> Query.intersection(["a", "b", "c"], ["b", "c", "d"])
+            ['b', 'c']
         """
         intersect_list: list[str] = [
             value for value in first_list if value in second_list
@@ -113,22 +161,34 @@ class Query:
 
     @staticmethod
     def unique(first_list: list[str], second_list: list[str]) -> list[str]:
-        """Get unique values of two lists
+        """Return the deduplicated union of two lists.
 
         Args:
-            first_list (list[str]): first list
-            second_list (list[str]): second list
+            first_list (list[str]): First list of names.
+            second_list (list[str]): Second list of names.
 
         Returns:
-            list[str]: Unique values of two lists
+            list[str]: All distinct values from both inputs. Order is not
+                guaranteed because a set is used internally.
+
+        Example:
+            >>> sorted(Query.unique(["a", "b"], ["b", "c"]))
+            ['a', 'b', 'c']
         """
         return list(set(first_list + second_list))
 
     def reset_selected_columns(self) -> Self:
-        """Reset selected columns
+        """Clear the current column selection.
+
+        Sets :attr:`selected_columns` back to an empty list. Emits a log line
+        when :attr:`verbose` is ``True``.
 
         Returns:
-            Self: self
+            Self: The same instance, to allow method chaining.
+
+        Example:
+            >>> q.select_columns(["CO2"]).reset_selected_columns().selected_columns
+            []
         """
         self.selected_columns: list[str] = []
         if self.verbose:
@@ -136,10 +196,17 @@ class Query:
         return self
 
     def refresh(self) -> Self:
-        """Return attributes with the original one
+        """Restore :attr:`df` to the pristine :attr:`df_original` copy.
+
+        Also clears the current selection and recomputes
+        :attr:`numeric_columns` and the ``start_date`` / ``end_date`` pair.
 
         Returns:
-            Self
+            Self: The same instance, to allow method chaining.
+
+        Example:
+            >>> q.select_columns(["CO2"]).refresh().is_filtered()
+            False
         """
         df = self.df_original.copy()
 
@@ -158,21 +225,31 @@ class Query:
         return self
 
     def is_filtered(self) -> bool:
-        """Check if data is filtered
+        """Check whether :attr:`df` differs from :attr:`df_original`.
 
         Returns:
-            bool: True if data is filtered
+            bool: ``True`` when the working DataFrame no longer equals the
+                pristine copy, ``False`` otherwise.
+
+        Example:
+            >>> q.is_filtered()
+            False
         """
         return False if self.df_original.equals(self.df) else True
 
     def column_has_nan(self, column_name: str) -> bool:
-        """Check if column has NULL or NaN value.
+        """Report whether a column contains any NaN or empty-string value.
 
         Args:
-            column_name (str): column name
+            column_name (str): Name of the column to inspect.
 
         Returns:
-            bool: True if column is empty
+            bool: ``True`` if the column has at least one NaN or (for object
+                dtype) empty string; ``False`` otherwise.
+
+        Example:
+            >>> q.column_has_nan("CO2")
+            False
         """
         validate_column(column_name, self.columns)
         col = self.df[column_name]
@@ -181,13 +258,17 @@ class Query:
         return bool(has_null or has_empty)
 
     def column_is_empty(self, column_name: str) -> bool:
-        """Check if column is empty.
+        """Report whether a numeric column sums to zero (treated as empty).
 
         Args:
-            column_name (str): column name
+            column_name (str): Name of the column to inspect.
 
         Returns:
-            bool: True if column is empty
+            bool: ``True`` when ``df[column_name].sum() == 0``.
+
+        Example:
+            >>> q.column_is_empty("unused_channel")
+            True
         """
         validate_column(column_name, self.columns)
         return True if (self.df[column_name].sum() == 0) else False

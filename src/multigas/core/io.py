@@ -25,7 +25,7 @@ def read_file(
     Args:
         file_path: Path to the source CSV or dat file.
         dataset_type: Dataset type identifier — a :class:`DatasetType` member
-            or its string value (e.g. ``"one_minute"``).
+            or its string value (e.g. ``"1min"``).
         drop_empty_columns: Drop columns that are entirely NaN after
             normalisation. Defaults to ``False``.
         normalize: Replace NAN sentinel strings with ``np.nan`` and coerce
@@ -48,7 +48,7 @@ def read_file(
 
     Example:
         >>> from multigas.core.io import read_file
-        >>> ds = read_file("data/site_a.dat", dataset_type="one_minute")
+        >>> ds = read_file("data/site_a.dat", dataset_type="1min")
         >>> ds.df.shape
         (1440, 10)
     """

@@ -6,8 +6,8 @@ files produced by Campbell Scientific dataloggers, and :func:`read_file` as a
 convenient one-call entry point.
 
 Example:
-    >>> from multigas import read_file, DataLoader
-    >>> ds = read_file("data/site_a.dat", dataset_type="one_minute")
+    >>> from multigas import read_file
+    >>> ds = read_file("data/site_a.dat", dataset_type="1min")
     >>> ds.df.head()
 """
 

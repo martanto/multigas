@@ -1,3 +1,19 @@
+"""On-disk joblib cache helpers.
+
+Provides the primitives used by :class:`multigas.data.loader.DataLoader` to
+persist normalised DataFrames across runs:
+
+- :func:`get_cache_key` derives a stable filename stem from the source file's
+  absolute path and mtime.
+- :func:`get_cache_path` resolves the ``.pkl`` path inside a cache directory.
+- :func:`save_cache` serialises a DataFrame together with file metadata used
+  to detect staleness on the next read.
+- :func:`clear_cache` deletes every ``.pkl`` file in a cache directory.
+
+Cache entries become invalid automatically whenever the source file's mtime or
+size changes.
+"""
+
 import hashlib
 from pathlib import Path
 
@@ -106,12 +122,19 @@ def save_cache(
 def load_cache(file_path: Path | str) -> None:
     """Placeholder for loading a cached DataFrame directly by source path.
 
+    Not yet implemented. In practice callers should use
+    :meth:`multigas.data.loader.DataLoader._load_from_cache`, which validates
+    the cache entry against the source file's current mtime and size.
+
     Args:
-        file_path: Path to the original source file whose cache should be
-            loaded.
+        file_path (Path | str): Path to the original source file whose cache
+            entry would be loaded.
 
     Returns:
-        None — not yet implemented.
+        None: Always returns ``None`` until implemented.
+
+    Example:
+        >>> load_cache("data/site_a.dat")  # returns None
     """
     pass
 

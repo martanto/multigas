@@ -1,3 +1,15 @@
+"""Validation helpers for DataFrames and column names.
+
+Provides two families of checks used across the package:
+
+- Sampling-rate validation via :func:`check_sampling_consistency`, which
+  splits a DataFrame into consistent / inconsistent slices based on a
+  target frequency and tolerance.
+- Column-name validation via :func:`validate_columns` (hard-fail),
+  :func:`validate_column` (log-only), and :func:`validate_dataframe_column`
+  (log-only, DataFrame-aware).
+"""
+
 import pandas as pd
 
 from multigas.logging import logger

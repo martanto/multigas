@@ -1,3 +1,14 @@
+"""DataFrame shaping helpers.
+
+Thin wrappers over pandas used by :class:`multigas.core.query.Query` and the
+loader:
+
+- :func:`to_dateime_index` promotes a named column to a sorted
+  :class:`pandas.DatetimeIndex`.
+- :func:`get_dates` returns the min/max index dates alongside their string
+  representations.
+"""
+
 import pandas as pd
 
 from multigas.utils.validation import validate_dataframe_column

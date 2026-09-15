@@ -1,4 +1,18 @@
-"""Shared type aliases, enums, and dataclasses for the multigas package."""
+"""Shared type aliases, enums, and dataclasses for the multigas package.
+
+Groups the small, dependency-light types that would otherwise be scattered
+across the package:
+
+- Type aliases: :data:`DateLike`, :data:`ColumnName`, :data:`Comparator`.
+- Enums: :class:`DatasetType`, :class:`LogLevel`, :class:`SensorStatus`,
+  :class:`FileFormat`.
+- Dataclasses: :class:`MultiGasData` (a DataFrame + provenance wrapper that
+  also inherits :class:`multigas.core.query.Query` for fluent operations).
+- TypedDicts: :class:`DatasetMetadataDict`.
+
+Values for :class:`DatasetType` are chosen so that they double as pandas
+frequency aliases where applicable (``"1s"``, ``"2s"``, ``"6h"``, ``"1min"``).
+"""
 
 from enum import IntEnum, StrEnum, EnumMeta
 from typing import TypedDict
@@ -12,8 +26,13 @@ from multigas.core.query import Query
 
 
 DateLike = str | datetime | pd.Timestamp
+"""Anything that :func:`pandas.to_datetime` can interpret as a single date."""
+
 ColumnName = str
+"""Alias for a DataFrame column name; kept explicit for readability."""
+
 Comparator = str
+"""Alias for a comparison operator string (e.g. ``">="``, ``"=="``)."""
 
 
 def _raise_missing_value(cls: EnumMeta, value: object) -> None:
@@ -39,12 +58,24 @@ def _raise_missing_value(cls: EnumMeta, value: object) -> None:
 
 
 class DatasetType(StrEnum):
-    """Types of datasets."""
+    """Sampling interval or acquisition mode of a multi-gas dataset.
 
-    ONE_SECOND = "one_second"
-    TWO_SECONDS = "two_seconds"
-    SIX_HOURS = "six_hours"
-    ONE_MINUTE = "one_minute"
+    Members whose value is a pandas frequency alias correspond to the four
+    fixed sampling rates emitted by the datalogger. The remaining members
+    (:attr:`ZERO`, :attr:`SPAN`, :attr:`WX`) tag calibration and weather
+    streams that are read side-by-side with the sample data.
+
+    Example:
+        >>> DatasetType("1min")
+        <DatasetType.ONE_MINUTE: '1min'>
+        >>> DatasetType.SIX_HOURS.value
+        '6h'
+    """
+
+    ONE_SECOND = "1s"
+    TWO_SECONDS = "2s"
+    SIX_HOURS = "6h"
+    ONE_MINUTE = "1min"
     ZERO = "zero"
     SPAN = "span"
     WX = "wx"
@@ -85,7 +116,7 @@ class MultiGasData(Query):
         >>> result = loader.load(path, DatasetType.ONE_MINUTE)
         >>> result.select_numeric_columns().df.head()
         >>> result.dataset_type
-        <DatasetType.ONE_MINUTE: 'one_minute'>
+        <DatasetType.ONE_MINUTE: '1min'>
     """
 
     df: pd.DataFrame
@@ -111,7 +142,7 @@ class MultiGasData(Query):
 
         Example:
             >>> repr(result)
-            "MultiGasData(dataset_type=<DatasetType.ONE_MINUTE: 'one_minute'>, ..., index_col='TIMESTAMP', drop_empty_columns=False, verbose=False)"
+            "MultiGasData(dataset_type=<DatasetType.ONE_MINUTE: '1min'>, ..., index_col='TIMESTAMP', drop_empty_columns=False, verbose=False)"
         """
         return (
             f"MultiGasData("
@@ -124,7 +155,24 @@ class MultiGasData(Query):
 
 
 class DatasetMetadataDict(TypedDict, total=False):
-    """Metadata extracted from dataset files."""
+    """Metadata extracted from a Campbell Scientific TOA5 header.
+
+    All keys are optional; only those present in the source file are populated.
+
+    Attributes:
+        station: Station name recorded by the datalogger.
+        logger_type: Datalogger model (e.g. ``"CR1000"``).
+        firmware: Firmware / OS build identifier.
+        program_name: Name of the CRBasic program producing the table.
+        file_sampling: Sampling declaration recorded in the file header.
+        serial_number: Datalogger serial number.
+        os_version: Operating-system version string reported by the logger.
+
+    Example:
+        >>> meta: DatasetMetadataDict = {"station": "SiteA", "logger_type": "CR1000"}
+        >>> meta["station"]
+        'SiteA'
+    """
 
     station: str
     logger_type: str
@@ -136,7 +184,17 @@ class DatasetMetadataDict(TypedDict, total=False):
 
 
 class LogLevel(StrEnum):
-    """Logging verbosity levels."""
+    """Verbosity levels understood by the package logger.
+
+    Values are lowercased strings so they can be passed straight to loguru
+    without additional coercion.
+
+    Example:
+        >>> LogLevel.INFO
+        <LogLevel.INFO: 'info'>
+        >>> LogLevel("debug").value
+        'debug'
+    """
 
     DEBUG = "debug"
     INFO = "info"
@@ -214,7 +272,17 @@ class SensorStatus(IntEnum):
 
 
 class FileFormat(StrEnum):
-    """Supported output file formats."""
+    """Output file formats supported by writers in the multigas package.
+
+    Values match the tokens accepted by the writer entry points and by
+    downstream tooling that inspects the target format.
+
+    Example:
+        >>> FileFormat.CSV
+        <FileFormat.CSV: 'csv'>
+        >>> FileFormat("parquet").value
+        'parquet'
+    """
 
     CSV = "csv"
     EXCEL = "excel"
