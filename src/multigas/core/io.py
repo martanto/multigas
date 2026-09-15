@@ -13,6 +13,7 @@ def read_file(
     drop_empty_columns: bool = False,
     normalize: bool = True,
     use_cache: bool = True,
+    output_dir: Path | str | None = None,
     cache_dir: Path | str | None = None,
     overwrite: bool = False,
     verbose: bool = False,
@@ -32,8 +33,10 @@ def read_file(
             object columns to numeric. Defaults to ``True``.
         use_cache: Read from and write to the on-disk joblib cache when
             ``normalize`` is also ``True``. Defaults to ``True``.
+        output_dir: Root output directory. String values are coerced to
+            :class:`~pathlib.Path`. Defaults to ``<cwd>/output``.
         cache_dir: Directory for cached files. Defaults to
-            ``<cwd>/output/cache``.
+            ``<output_dir>/cache``.
         overwrite: Ignore any existing cache entry and re-load from source.
             Defaults to ``False``.
         verbose: Emit informational log messages during loading. Defaults to
@@ -53,7 +56,10 @@ def read_file(
         (1440, 10)
     """
     mutigas_data = DataLoader(
-        cache_dir=cache_dir, overwrite=overwrite, verbose=verbose
+        output_dir=output_dir,
+        cache_dir=cache_dir,
+        overwrite=overwrite,
+        verbose=verbose,
     ).load(
         file_path=file_path,
         dataset_type=dataset_type,

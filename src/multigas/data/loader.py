@@ -18,6 +18,7 @@ import numpy as np
 import joblib
 import pandas as pd
 
+from multigas.core import DatasetMetadataDict
 from multigas.logging import logger
 from multigas.core.types import DatasetType, MultiGasData
 from multigas.utils.path import ensure_dir
@@ -50,6 +51,7 @@ class DataLoader:
 
     def __init__(
         self,
+        output_dir: Path | str | None = None,
         cache_dir: Path | str | None = None,
         overwrite: bool = False,
         verbose: bool = False,
@@ -57,8 +59,11 @@ class DataLoader:
         """Configure paths, caching behaviour, and verbosity.
 
         Args:
+            output_dir (Path | str | None): Root output directory. String
+                values are coerced to :class:`~pathlib.Path`. Defaults to
+                ``<cwd>/output`` when ``None``.
             cache_dir (Path | str | None): Directory that will hold cache
-                entries. Defaults to ``<cwd>/output/cache`` when ``None``.
+                entries. Defaults to ``<output_dir>/cache`` when ``None``.
             overwrite (bool): If ``True``, subsequent :meth:`load` calls
                 ignore any existing cache entry and reload from source.
                 Defaults to ``False``.
@@ -67,9 +72,13 @@ class DataLoader:
 
         Example:
             >>> loader = DataLoader()
-            >>> loader_custom = DataLoader(cache_dir="/tmp/cache", verbose=True)
+            >>> loader_custom = DataLoader(
+            ...     output_dir="/tmp/multigas",
+            ...     cache_dir="/tmp/cache",
+            ...     verbose=True,
+            ... )
         """
-        output_dir = Path.cwd() / "output"
+        output_dir = Path.cwd() / "output" if output_dir is None else Path(output_dir)
 
         if cache_dir is None:
             cache_dir = output_dir / "cache"
@@ -79,6 +88,9 @@ class DataLoader:
         self.normalize_dir: Path = output_dir / "normalized"
         self.cache_dir: Path = Path(cache_dir)
         self.overwrite: bool = overwrite
+
+        self.metadata: DatasetMetadataDict | None = None
+
         self.verbose: bool = verbose
 
     def load(
@@ -86,6 +98,7 @@ class DataLoader:
         file_path: Path | str,
         dataset_type: DatasetType | str,
         drop_empty_columns: bool = False,
+        index_col: str = "TIMESTAMP",
         normalize: bool = True,
         use_cache: bool = True,
     ) -> MultiGasData:
@@ -104,6 +117,12 @@ class DataLoader:
             drop_empty_columns (bool): Drop columns that are entirely NaN
                 after normalisation. Only applied when ``normalize`` is
                 ``True``. Defaults to ``False``.
+            index_col (str): Exact name of the column to promote to the
+                DataFrame index. The column's values are coerced with
+                :func:`pandas.to_datetime` (``errors="coerce"``) before
+                being set as the index. Matching is case-sensitive; the
+                column must exist in the source file. Defaults to
+                ``"TIMESTAMP"``.
             normalize (bool): Replace NaN-sentinel strings with ``np.nan``
                 and coerce object columns to numeric. Defaults to ``True``.
             use_cache (bool): Read from and write to the on-disk cache.
@@ -116,12 +135,21 @@ class DataLoader:
 
         Raises:
             LoaderError: If ``dataset_type`` is invalid, the file is missing,
-                or the source cannot be parsed.
+                the source cannot be parsed, or ``index_col`` does not name
+                a column in the loaded DataFrame.
 
         Example:
             >>> loader = DataLoader()
             >>> ds = loader.load("data/site_a.dat", dataset_type="1min")
             >>> ds.df.head()
+
+            Load with a non-default index column:
+
+            >>> ds = loader.load(
+            ...     "data/site_a.csv",
+            ...     dataset_type="1min",
+            ...     index_col="Timestamp",
+            ... )
         """
         try:
             dataset_type = DatasetType(dataset_type)
@@ -139,9 +167,6 @@ class DataLoader:
             if self.verbose:
                 logger.info(f"Cache dir: {self.cache_dir}")
 
-        # Try to load from cache first. `_load_from_cache` returns None on
-        # any soft failure (miss, stale, or corrupted), so no exception
-        # handling is needed here.
         if use_cache and normalize and not self.overwrite:
             cached_df = self._load_from_cache(file_path)
             if cached_df is not None:
@@ -155,7 +180,7 @@ class DataLoader:
 
         # Load from source file
         try:
-            df = self._load_csv(file_path)
+            df = self._load_csv(file_path, index_col)
 
             # Normalize if requested
             if normalize:
@@ -172,7 +197,11 @@ class DataLoader:
         except Exception as e:
             raise LoaderError(f"Failed to load {file_path}: {e}") from e
 
-    def _load_csv(self, file_path: Path) -> pd.DataFrame:
+    def _load_csv(
+        self,
+        file_path: Path,
+        index_col: str,
+    ) -> pd.DataFrame:
         """Load a CSV file with automatic TOA5 format detection.
 
         First attempts to parse the file as a Campbell Scientific TOA5 file
@@ -239,20 +268,14 @@ class DataLoader:
                 low_memory=False,
             )
 
-        # Set TIMESTAMP as index
-        timestamp_column = next(
-            (
-                column
-                for column in df.columns
-                if isinstance(column, str) and column.lower() == "timestamp"
-            ),
-            None,
-        )
-        if timestamp_column is not None:
-            if timestamp_column != "TIMESTAMP":
-                df = df.rename(columns={timestamp_column: "TIMESTAMP"})
-            df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"], errors="coerce")
-            df = df.set_index("TIMESTAMP")
+        # Promote the requested column to the DataFrame index (required).
+        try:
+            df[index_col] = pd.to_datetime(df[index_col], errors="coerce")
+            df = df.set_index(index_col)
+        except KeyError as e:
+            raise LoaderError(
+                f"Index column {index_col!r} not found in {file_path}."
+            ) from e
 
         if self.verbose:
             logger.info(f"Loaded from {file_path}")
@@ -260,7 +283,9 @@ class DataLoader:
         return df
 
     def _normalize(
-        self, df: pd.DataFrame, drop_empty_columns: bool = False
+        self,
+        df: pd.DataFrame,
+        drop_empty_columns: bool = False,
     ) -> pd.DataFrame:
         """Replace NAN sentinel strings with ``np.nan`` and coerce numeric columns.
 
