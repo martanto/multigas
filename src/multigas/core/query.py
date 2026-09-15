@@ -94,6 +94,10 @@ class Query:
     def nan_columns(self) -> list[str]:
         """Names of columns that contain at least one NaN or empty string.
 
+        When a selection is active (:attr:`selected_columns` non-empty), only
+        selected columns are inspected; otherwise every column is checked.
+        Mirrors the scoping of :attr:`empty_columns`.
+
         Returns:
             list[str]: Column names that have any NaN or empty-string value.
 
@@ -101,12 +105,8 @@ class Query:
             >>> q.nan_columns
             ['CO2', 'H2S']
         """
-        nan_columns: list[str] = []
-        for column in self.columns:
-            if self.column_has_nan(column):
-                nan_columns.append(column)
-
-        return nan_columns
+        columns_name = self.selected_columns or self.columns
+        return [c for c in columns_name if self.column_has_missing(c)]
 
     @property
     def empty_columns(self) -> list[str]:
@@ -237,24 +237,35 @@ class Query:
         """
         return False if self.df_original.equals(self.df) else True
 
-    def column_has_nan(self, column_name: str) -> bool:
-        """Report whether a column contains any NaN or empty-string value.
+    def column_has_missing(self, column_name: str) -> bool:
+        """Report whether a column contains any missing value.
+
+        "Missing" covers ``NaN``/``pd.NA`` for every dtype and, for
+        string-like dtypes, the empty string ``""``. The string check uses
+        :func:`pandas.api.types.is_string_dtype` so it covers legacy
+        ``object`` columns and pandas 3.x's default ``StringDtype``.
+        ``fillna("")`` runs first so ``pd.NA`` does not propagate through
+        the ``==`` comparison.
 
         Args:
             column_name (str): Name of the column to inspect.
 
         Returns:
-            bool: ``True`` if the column has at least one NaN or (for object
-                dtype) empty string; ``False`` otherwise.
+            bool: ``True`` if the column has at least one NaN, ``pd.NA``, or
+                (for string-like dtypes) empty string; ``False`` otherwise.
 
         Example:
-            >>> q.column_has_nan("CO2")
+            >>> q.column_has_missing("CO2")
             False
         """
         validate_column(column_name, self.columns)
         col = self.df[column_name]
         has_null = col.isna().to_numpy().any()
-        has_empty = (col == "").any() if col.dtype == object else False
+        has_empty = (
+            col.fillna("").eq("").to_numpy().any()
+            if pd.api.types.is_string_dtype(col)
+            else False
+        )
         return bool(has_null or has_empty)
 
     def column_is_empty(self, column_name: str) -> bool:
@@ -331,7 +342,9 @@ class Query:
         return self
 
     def select_numeric_columns(
-        self, column_names: str | list[str] | None = None, validate: bool = True
+        self,
+        column_names: str | list[str] | None = None,
+        validate: bool = True,
     ) -> Self:
         """Select numeric columns, optionally filtered to a given subset.
 
