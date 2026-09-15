@@ -32,13 +32,64 @@ uv sync
 
 ---
 
+## Quick start
+
+Load a Campbell Scientific TOA5 (or plain CSV) file and get a `MultiGasData`
+back — a DataFrame wrapper with fluent column-selection helpers.
+
+```python
+from multigas import read_file
+
+ds = read_file("data/site_a.dat", dataset_type="1min")
+
+ds.df.head()               # underlying DataFrame (datetime-indexed)
+ds.dataset_type            # <DatasetType.ONE_MINUTE: '1min'>
+ds.source_path             # absolute path to the source file
+```
+
+Need full control over paths, cache behaviour, or verbosity? Use `DataLoader`
+directly:
+
+```python
+from multigas import DataLoader
+
+loader = DataLoader(
+    output_dir="output",
+    cache_dir="output/cache",
+    overwrite=False,
+    verbose=True,
+)
+ds = loader.load("data/site_a.dat", dataset_type="1min")
+```
+
+Both entry points serve from an on-disk `joblib` cache keyed by absolute path
+plus mtime. Stale or corrupted entries are dropped transparently.
+
+### Fluent queries
+
+`MultiGasData` inherits from `Query`, so column selection and inspection
+chain directly on the result:
+
+```python
+ds.select_numeric_columns().selected_columns
+# ['CO2', 'SO2', 'H2S', ...]
+
+ds.select_columns(["CO2", "SO2"]).df.head()
+
+ds.missing_columns   # columns with any NaN / empty value
+ds.empty_columns     # columns that are all-NaN, all-zero, or all-empty
+ds.refresh()         # restore the pristine DataFrame and clear selection
+```
+
+---
+
 ## Development
 
 ```bash
 # Lint and auto-fix
 uv run ruff check --fix src/
 
-# Type check
+# Type check (uses `ty`, not mypy)
 uvx ty check src/
 
 # Run all tests
@@ -47,36 +98,56 @@ uv run pytest tests/
 # Run a single test file
 uv run pytest tests/path/to/test_file.py
 
-# Check for circular imports
+# Check for circular imports after any module change
 uv run pytest tests/test_imports.py -v
 ```
 
 ---
 
-## Package Structure
+## Package layout
+
+The package uses the `src/` layout. Public entry points are re-exported from
+`multigas`:
 
 ```
 src/multigas/
-├── __init__.py          # Version metadata
-├── config/
-│   └── logging.py       # Logging setup (console + optional file handler)
-└── core/
-    ├── exceptions.py    # Custom exception hierarchy
-    └── types.py         # Shared type aliases, enums, and TypedDicts
+├── __init__.py          # Exposes read_file, DataLoader, version metadata
+├── logging.py           # Loguru logger + enable/disable/level helpers
+├── config/              # Configuration (stub)
+├── core/
+│   ├── __init__.py      # Re-exports MultiGasData, DatasetType, exceptions
+│   ├── types.py         # Enums, type aliases, MultiGasData dataclass
+│   ├── query.py         # Query — fluent column/filter mixin
+│   ├── io.py            # read_file — one-call convenience wrapper
+│   └── exceptions.py    # MultigasException hierarchy (auto-logs on raise)
+├── data/
+│   └── loader.py        # DataLoader — file I/O, normalisation, joblib cache
+└── utils/
+    ├── path.py          # ensure_dir helper
+    ├── cache.py         # get_cache_key / get_cache_path / save_cache
+    ├── validation.py    # check_columns_exist, check_sampling_consistency
+    └── dataframe.py     # to_dateime_index, get_dates helpers
 ```
 
 ### Core types (`multigas.core.types`)
 
 | Name | Kind | Description |
 |---|---|---|
+| `MultiGasData` | `dataclass(Query)` | Wraps a loaded DataFrame with `dataset_type`, `source_path`, `index_col`, and the fluent `Query` API |
+| `DatasetType` | `StrEnum` | Sampling intervals as pandas frequency aliases: `ONE_SECOND="1s"`, `TWO_SECONDS="2s"`, `ONE_MINUTE="1min"`, `SIX_HOURS="6h"`, plus categorical modes `ZERO="zero"`, `SPAN="span"`, `WX="wx"` |
+| `SensorStatus` | `IntEnum` | Datalogger status codes (e.g. `WARMING_UP=-1`, `SAMPLE_ACQUISITION=1`, `SPAN_CO2_SO2=4`), each with a `.description` property |
+| `FileFormat` | `StrEnum` | `CSV`, `EXCEL`, `PARQUET`, `JSON` |
+| `LogLevel` | `StrEnum` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `DatasetMetadataDict` | `TypedDict` | Optional TOA5 header fields (`station`, `logger_type`, `firmware`, …) |
 | `DateLike` | type alias | `str \| datetime \| pd.Timestamp` |
 | `ColumnName` | type alias | `str` |
-| `DatasetType` | `StrEnum` | Dataset sampling intervals as pandas frequency aliases: `ONE_SECOND="1s"`, `TWO_SECONDS="2s"`, `ONE_MINUTE="1min"`, `SIX_HOURS="6h"`, plus categorical modes `ZERO="zero"`, `SPAN="span"`, `WX="wx"` |
-| `DatasetMetadataDict` | `TypedDict` | Station metadata from datalogger files |
-| `LogLevel` | `StrEnum` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
-| `FileFormat` | `StrEnum` | `CSV`, `EXCEL`, `PARQUET`, `JSON` |
+| `Comparator` | type alias | `str` (e.g. `">="`, `"=="`) |
 
 ### Exceptions (`multigas.core.exceptions`)
+
+Every subclass auto-logs on construction — do **not** add a manual
+`logger.error(...)` before `raise`. Override the class-level `_log_level`
+attribute (default `"ERROR"`) to lower severity.
 
 ```
 MultigasException
@@ -92,24 +163,32 @@ MultigasException
 └── ConfigError
 ```
 
-### Logging (`multigas.config.logging`)
+### Logging (`multigas.logging`)
+
+The package ships a preconfigured `loguru` logger. Handlers are only
+registered when the `ENABLE_LOG` environment variable is `"true"` (set it in
+`.env` or export it before running).
 
 ```python
-from multigas.config.logging import setup_logging, get_logger
-from multigas.core.types import LogLevel
+from multigas.logging import (
+    logger,
+    enable_logging,
+    disable_logging,
+    set_log_level,
+    set_log_directory,
+)
 
-# Basic setup (console only)
-logger = setup_logging(LogLevel.INFO)
-
-# Enable file logging to logs/YYYY-MM-DD.log
-logger = setup_logging(LogLevel.DEBUG, enable_file_log=True)
-
-# Or set ENABLE_LOG=true in .env to enable file logging automatically
-logger = setup_logging()
-
-# Get a named child logger
-logger = get_logger("multigas.reader")
+logger.info("hello")           # no-op unless ENABLE_LOG=true
+enable_logging()               # register console + file sinks
+set_log_level("DEBUG")         # console-only; file sinks stay at DEBUG/ERROR
+set_log_directory("./logs")    # rotate to a new directory
+disable_logging()              # remove all handlers
 ```
+
+When enabled, two rotating files are written to `logs/`:
+
+- `multigas_YYYY-MM-DD.log` — `DEBUG+`, 30-day retention, zipped on rotation
+- `errors_YYYY-MM-DD.log` — `ERROR+`, 90-day retention, zipped on rotation
 
 ---
 
@@ -120,8 +199,9 @@ logger = get_logger("multigas.reader")
 | `pandas` | DataFrame operations |
 | `numpy` | Numerical computing |
 | `openpyxl` | Excel file I/O |
+| `joblib` | On-disk DataFrame cache |
 | `loguru` | Structured logging |
-| `python-dotenv` | Environment variable loading |
+| `python-dotenv` | `.env` loading for `ENABLE_LOG` |
 
 ---
 
