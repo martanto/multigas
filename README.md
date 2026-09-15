@@ -71,7 +71,7 @@ src/multigas/
 |---|---|---|
 | `DateLike` | type alias | `str \| datetime \| pd.Timestamp` |
 | `ColumnName` | type alias | `str` |
-| `DatasetType` | `StrEnum` | Dataset sampling intervals: `ONE_SECOND`, `TWO_SECONDS`, `ONE_MINUTE`, `SIX_HOURS`, `ZERO`, `SPAN`, `WX` |
+| `DatasetType` | `StrEnum` | Dataset sampling intervals as pandas frequency aliases: `ONE_SECOND="1s"`, `TWO_SECONDS="2s"`, `ONE_MINUTE="1min"`, `SIX_HOURS="6h"`, plus categorical modes `ZERO="zero"`, `SPAN="span"`, `WX="wx"` |
 | `DatasetMetadataDict` | `TypedDict` | Station metadata from datalogger files |
 | `LogLevel` | `StrEnum` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `FileFormat` | `StrEnum` | `CSV`, `EXCEL`, `PARQUET`, `JSON` |
