@@ -258,20 +258,36 @@ class Query:
         return bool(has_null or has_empty)
 
     def column_is_empty(self, column_name: str) -> bool:
-        """Report whether a numeric column sums to zero (treated as empty).
+        """Report whether a column has no meaningful data.
+
+        A column is treated as empty when every value is NaN, or — depending
+        on dtype — additionally when every value is ``0`` (numeric) or ``""``
+        (object). Non-numeric, non-object dtypes (e.g. datetime, boolean) are
+        empty only when every value is NaN.
 
         Args:
             column_name (str): Name of the column to inspect.
 
         Returns:
-            bool: ``True`` when ``df[column_name].sum() == 0``.
+            bool: ``True`` when the column is considered empty.
 
         Example:
             >>> q.column_is_empty("unused_channel")
             True
         """
         validate_column(column_name, self.columns)
-        return True if (self.df[column_name].sum() == 0) else False
+        col = self.df[column_name]
+
+        if col.isna().to_numpy().all():
+            return True
+
+        if pd.api.types.is_numeric_dtype(col):
+            return bool(col.fillna(0).eq(0).to_numpy().all())
+
+        if pd.api.types.is_string_dtype(col):
+            return bool(col.fillna("").eq("").to_numpy().all())
+
+        return False
 
     def select_columns(
         self,
