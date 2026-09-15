@@ -13,7 +13,7 @@ import pandas as pd
 
 from multigas.logging import logger
 from multigas.utils.dataframe import get_dates, to_dateime_index
-from multigas.utils.validation import validate_column
+from multigas.utils.validation import check_columns_exist
 
 
 class Query:
@@ -91,18 +91,20 @@ class Query:
         self.verbose: bool = verbose
 
     @property
-    def nan_columns(self) -> list[str]:
-        """Names of columns that contain at least one NaN or empty string.
+    def missing_columns(self) -> list[str]:
+        """Names of columns that contain at least one missing value.
 
+        "Missing" is defined by :meth:`column_has_missing` — ``NaN``/``pd.NA``
+        for every dtype and, for string-like dtypes, the empty string ``""``.
         When a selection is active (:attr:`selected_columns` non-empty), only
         selected columns are inspected; otherwise every column is checked.
         Mirrors the scoping of :attr:`empty_columns`.
 
         Returns:
-            list[str]: Column names that have any NaN or empty-string value.
+            list[str]: Column names that have at least one missing value.
 
         Example:
-            >>> q.nan_columns
+            >>> q.missing_columns
             ['CO2', 'H2S']
         """
         columns_name = self.selected_columns or self.columns
@@ -258,7 +260,7 @@ class Query:
             >>> q.column_has_missing("CO2")
             False
         """
-        validate_column(column_name, self.columns)
+        check_columns_exist(column_name, self.columns)
         col = self.df[column_name]
         has_null = col.isna().to_numpy().any()
         has_empty = (
@@ -286,7 +288,7 @@ class Query:
             >>> q.column_is_empty("unused_channel")
             True
         """
-        validate_column(column_name, self.columns)
+        check_columns_exist(column_name, self.columns)
         col = self.df[column_name]
 
         if col.isna().to_numpy().all():
@@ -314,14 +316,21 @@ class Query:
         Args:
             column_names: A single column name or a list of column names to
                 select.
-            numeric_column_only: If ``True``, further filter the selection to
-                numeric columns via :meth:`select_numeric_columns`. Defaults to
+            numeric_column_only: If ``True``, delegate to
+                :meth:`select_numeric_columns` so that non-numeric names are
+                dropped from the selection. A log line names the dropped
+                columns when :attr:`verbose` is ``True``. Defaults to
                 ``False``.
-            validate: Raise an error if any column name is not present in the
-                DataFrame. Defaults to ``True``.
+            validate: If ``True``, raise :class:`ColumnError` when any name is
+                not present in :attr:`columns`. The exception lists every
+                missing name in one message. Defaults to ``True``.
 
         Returns:
             Self for method chaining.
+
+        Raises:
+            ColumnError: When ``validate=True`` and one or more names are not
+                in :attr:`columns`.
 
         Example:
             >>> q.select_columns(["CO2", "SO2"]).df.columns.tolist()
@@ -331,14 +340,12 @@ class Query:
             column_names = [column_names]
 
         if validate:
-            for column_name in column_names:
-                validate_column(column_name, self.columns)
-
-        self.selected_columns: list[str] = column_names
+            check_columns_exist(column_names, self.columns)
 
         if numeric_column_only:
-            self.select_numeric_columns(column_names, validate=False)
+            return self.select_numeric_columns(column_names, validate=False)
 
+        self.selected_columns = list(column_names)
         return self
 
     def select_numeric_columns(
@@ -350,39 +357,56 @@ class Query:
 
         When ``column_names`` is ``None``, all numeric columns in the DataFrame
         are selected. Otherwise, the selection is the intersection of
-        ``column_names`` and :attr:`numeric_columns`.
+        ``column_names`` and :attr:`numeric_columns`; non-numeric names are
+        dropped, and a log line names them when :attr:`verbose` is ``True``.
 
         Args:
             column_names: Column name(s) to filter. If ``None``, all numeric
                 columns are selected. Defaults to ``None``.
-            validate: Validate each name against the DataFrame columns before
-                filtering. Defaults to ``True``.
+            validate: If ``True``, raise :class:`ColumnError` when any name is
+                not present in :attr:`columns` (non-numeric names that *do*
+                exist are silently dropped by the intersection instead).
+                Defaults to ``True``.
 
         Returns:
             Self for method chaining.
+
+        Raises:
+            ColumnError: When ``validate=True`` and one or more names are not
+                in :attr:`columns`.
 
         Example:
             >>> q.select_numeric_columns().selected_columns
             ['CO2', 'SO2', 'H2S']
         """
         if column_names is None:
-            self.selected_columns = self.numeric_columns
+            self.selected_columns = list(self.numeric_columns)
+            if self.verbose:
+                logger.info(
+                    f"Selected all {len(self.numeric_columns)} numeric "
+                    f"column(s): {self.numeric_columns}"
+                )
             return self
 
         if isinstance(column_names, str):
             column_names = [column_names]
 
         if validate:
-            for column_name in column_names:
-                validate_column(column_name, self.columns)
+            check_columns_exist(column_names, self.columns)
 
-        self.selected_columns: list[str] = self.intersection(
-            column_names, self.numeric_columns
-        )
+        numeric_selection = self.intersection(column_names, self.numeric_columns)
+        self.selected_columns = numeric_selection
 
         if self.verbose:
+            dropped = [c for c in column_names if c not in numeric_selection]
+            if dropped:
+                logger.info(
+                    f"Dropped {len(dropped)} non-numeric "
+                    f"column(s) from selection: {dropped}"
+                )
             logger.info(
-                f"Total numeric columns: {len(self.numeric_columns)}. {self.numeric_columns}"
+                f"Selected {len(numeric_selection)} numeric column(s) from "
+                f"{len(column_names)} requested: {numeric_selection}"
             )
 
         return self

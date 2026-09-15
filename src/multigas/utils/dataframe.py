@@ -25,7 +25,8 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
         pd.DataFrame: DataFrame sorted ascending with a pd.DatetimeIndex.
 
     Raises:
-        ValueError: If ``index_col`` does not exist in ``df``.
+        ColumnError: If ``index_col`` does not exist in ``df`` (raised by
+            :func:`multigas.utils.validation.validate_dataframe_column`).
 
     Example:
         >>> df = pd.DataFrame({"time": ["2025-01-01"], "val": [1]})
