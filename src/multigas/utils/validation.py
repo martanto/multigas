@@ -5,14 +5,16 @@ Provides two families of checks used across the package:
 - Sampling-rate validation via :func:`check_sampling_consistency`, which
   splits a DataFrame into consistent / inconsistent slices based on a
   target frequency and tolerance.
-- Column-name validation via :func:`validate_columns` (hard-fail),
-  :func:`validate_column` (log-only), and :func:`validate_dataframe_column`
-  (log-only, DataFrame-aware).
+- Column-existence validation via :func:`check_columns_exist` (takes an
+  explicit ``available`` list) and :func:`validate_dataframe_column`
+  (DataFrame-aware wrapper around it). Both hard-fail via
+  :class:`ColumnError`.
 """
 
 import pandas as pd
 
 from multigas.logging import logger
+from multigas.core.exceptions import ColumnError
 
 
 def check_sampling_consistency(
@@ -95,70 +97,46 @@ def check_sampling_consistency(
     return is_consistent, consistent_data, inconsistent_data, sampling_rate
 
 
-def validate_columns(
-    df: pd.DataFrame, columns: list[str], exclude_columns: list[str] | None = None
+def check_columns_exist(
+    column_names: str | list[str], available: list[str]
 ) -> None:
-    """Validate that specified columns exist in DataFrame.
+    """Ensure every given column name exists in a list of available names.
 
-    Checks that all specified columns exist in the DataFrame, except those in
-    the exclude list. Raises ValueError with detailed message if any column is missing.
+    Accepts a single name or a list. On failure raises :class:`ColumnError`
+    once, listing every missing name and the full ``available`` set in the
+    message. :class:`ColumnError` auto-logs via
+    :meth:`MultigasException.__init__`, so callers do not need a manual
+    ``logger.error(...)`` before this raise.
 
     Args:
-        df (pd.DataFrame): DataFrame to validate.
-        columns (list[str]): List of column names to validate.
-        exclude_columns (list[str] | None, optional): List of column names to skip
-            validation. Defaults to None.
-
-    Returns:
-        None
+        column_names (str | list[str]): Column name or names to look up.
+        available (list[str]): Reference list of columns that exist.
 
     Raises:
-        ValueError: If any column in columns (except exclude_columns) does not exist
-            in the DataFrame.
-
-    Examples:
-        >>> df = pd.DataFrame({"rsam_f0": [1, 2], "rsam_f1": [3, 4]})
-        >>> validate_columns(df, ["rsam_f0", "rsam_f1"])  # No error
-        >>> validate_columns(df, ["rsam_f2"])  # Raises ValueError
-    """
-    excluded = set(exclude_columns or [])
-    available = set(df.columns.tolist())
-    missing_columns = [
-        column
-        for column in columns
-        if column not in excluded and column not in available
-    ]
-
-    if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {missing_columns}. "
-            f"Available columns: {df.columns.tolist()}"
-        )
-
-
-def validate_column(column: str, columns: list[str]) -> None:
-    """Ensure that a column name exists in a list of column names.
-
-    Logs an error message when the column is absent. Does not raise; callers
-    that need a hard failure should use :func:`validate_columns` instead.
-
-    Args:
-        column: Column name to look up.
-        columns: Reference list of available column names.
+        ColumnError: If one or more names are absent from ``available``.
 
     Example:
-        >>> validate_column("CO2", ["CO2", "SO2"])  # no output
-        >>> validate_column("H2S", ["CO2", "SO2"])
-        # ERROR: `H2S` is not a valid column name. Available columns: ['CO2', 'SO2']
+        >>> check_columns_exist("CO2", ["CO2", "SO2"])  # no error
+        >>> check_columns_exist(["CO2", "H2S"], ["CO2", "SO2"])
+        Traceback (most recent call last):
+            ...
+        multigas.core.exceptions.ColumnError: Column(s) not found: ['H2S']. Available: ['CO2', 'SO2']
     """
-    if column not in columns:
-        logger.error(
-            f"`{column}` is not a valid column name. Available columns: {columns}"
+    if isinstance(column_names, str):
+        column_names = [column_names]
+
+    missing = [c for c in column_names if c not in available]
+    if missing:
+        raise ColumnError(
+            f"Column(s) not found: {missing}. Available: {available}"
         )
 
 
 def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
     """Ensure column exists in provided dataframe.
+
+    Thin wrapper around :func:`check_columns_exist`, so a missing column
+    raises :class:`ColumnError` (auto-logged).
 
     Args:
         df (pd.DataFrame): DataFrame to inspect.
@@ -168,12 +146,11 @@ def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
         None
 
     Raises:
-        ValueError: If ``column`` is not present in ``df``.
+        ColumnError: If ``column`` is not present in ``df``.
 
     Example:
         >>> import pandas as pd
         >>> df = pd.DataFrame({"a": [1, 2]})
         >>> validate_dataframe_column(df, "a")  # no error
     """
-    columns: list[str] = df.columns.tolist()
-    validate_column(column, columns)
+    check_columns_exist(column, df.columns.tolist())
