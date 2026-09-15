@@ -1,3 +1,10 @@
+"""Filesystem path helpers.
+
+Small utilities for working with :class:`pathlib.Path` objects that do not
+warrant their own module. Currently exposes :func:`ensure_dir` for idempotent
+directory creation.
+"""
+
 from pathlib import Path
 
 

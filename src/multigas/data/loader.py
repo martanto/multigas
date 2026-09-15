@@ -1,4 +1,16 @@
-"""Data loading with caching and normalization."""
+"""Data loading with caching and normalisation.
+
+Home of :class:`DataLoader`, the full-control entry point for reading
+Campbell Scientific TOA5 or plain CSV files into a
+:class:`multigas.core.types.MultiGasData`. Loading is a three-step pipeline:
+
+1. Cache lookup (skipped when ``overwrite=True`` or ``normalize=False``).
+2. On-disk read — TOA5 auto-detection first, plain CSV as fallback.
+3. Optional normalisation (NaN-sentinel replacement, numeric coercion,
+   optional empty-column drop) followed by cache write.
+
+For a one-call convenience wrapper see :func:`multigas.core.io.read_file`.
+"""
 
 from pathlib import Path
 
@@ -7,74 +19,108 @@ import joblib
 import pandas as pd
 
 from multigas.logging import logger
-from multigas.core.types import DatasetType, LoadedDataset
+from multigas.core.types import DatasetType, MultiGasData
 from multigas.utils.path import ensure_dir
-from multigas.utils.cache import get_cache_path
-from multigas.core.exceptions import CacheError, LoaderError
+from multigas.utils.cache import save_cache, get_cache_path
+from multigas.core.exceptions import LoaderError
 
 
 class DataLoader:
-    """Handles file I/O, normalization, and caching.
+    """File I/O, normalisation, and cache management for multi-gas datasets.
+
+    Reads TOA5 or plain CSV files, optionally normalises them (NaN sentinels
+    replaced, numeric coercion, empty-column drop) and serialises the result
+    to an on-disk joblib cache keyed by absolute path + mtime.
 
     Attributes:
-        cache_dir: Directory for cached normalized files.
-        verbose: Whether to emit informational log messages.
+        basename (str | None): ``file_path.stem`` of the most recent load,
+            used for naming the normalised CSV.
+        output_dir (Path): Root output directory (``<cwd>/output``).
+        normalize_dir (Path): Where normalised CSV copies are written.
+        cache_dir (Path): Directory holding ``.pkl`` cache entries.
+        overwrite (bool): Skip the cache lookup on the next :meth:`load` call.
+        verbose (bool): Emit informational log messages during loading.
 
     Example:
         >>> loader = DataLoader(cache_dir="output/cache", verbose=True)
-        >>> dataset = loader.load("data/site_a.csv", dataset_type="co2")
+        >>> dataset = loader.load("data/site_a.dat", dataset_type="1min")
+        >>> dataset.dataset_type
+        <DatasetType.ONE_MINUTE: '1min'>
     """
 
-    def __init__(self, cache_dir: Path | str | None = None, verbose: bool = False):
-        """Initialize data loader.
+    def __init__(
+        self,
+        cache_dir: Path | str | None = None,
+        overwrite: bool = False,
+        verbose: bool = False,
+    ):
+        """Configure paths, caching behaviour, and verbosity.
 
         Args:
-            cache_dir: Cache directory. Defaults to ``./output/cache``.
-            verbose: Whether to emit informational log messages.
+            cache_dir (Path | str | None): Directory that will hold cache
+                entries. Defaults to ``<cwd>/output/cache`` when ``None``.
+            overwrite (bool): If ``True``, subsequent :meth:`load` calls
+                ignore any existing cache entry and reload from source.
+                Defaults to ``False``.
+            verbose (bool): Emit informational log messages during loading.
+                Defaults to ``False``.
 
         Example:
             >>> loader = DataLoader()
             >>> loader_custom = DataLoader(cache_dir="/tmp/cache", verbose=True)
         """
-        if cache_dir is None:
-            cache_dir = Path("output/cache")
+        output_dir = Path.cwd() / "output"
 
+        if cache_dir is None:
+            cache_dir = output_dir / "cache"
+
+        self.basename: str | None = None
+        self.output_dir: Path = output_dir
+        self.normalize_dir: Path = output_dir / "normalized"
         self.cache_dir: Path = Path(cache_dir)
-        self.verbose = verbose
+        self.overwrite: bool = overwrite
+        self.verbose: bool = verbose
 
     def load(
         self,
-        file_path: Path,
+        file_path: Path | str,
         dataset_type: DatasetType | str,
+        drop_empty_columns: bool = False,
         normalize: bool = True,
         use_cache: bool = True,
-    ) -> LoadedDataset:
-        """Load data from file with optional normalization and caching.
+    ) -> MultiGasData:
+        """Load a file into a :class:`MultiGasData`, with optional caching.
 
         Attempts to serve from cache when both ``use_cache`` and ``normalize``
-        are ``True``. On a cache miss the file is read from disk, optionally
-        normalized, and the result is written back to the cache.
+        are ``True`` and ``self.overwrite`` is ``False``. On a cache miss the
+        file is read from disk, optionally normalised, and the result is
+        written back to the cache.
 
         Args:
-            file_path: Path to the source CSV file.
-            dataset_type: Dataset type identifier (``DatasetType`` or its string
-                value).
-            normalize: Whether to replace NAN strings with ``np.nan`` and
-                coerce object columns to numeric. Defaults to ``True``.
-            use_cache: Whether to read from and write to the on-disk cache.
-                Caching is only applied when ``normalize`` is also ``True``.
+            file_path (Path | str): Path to the source CSV / TOA5 file.
+            dataset_type (DatasetType | str): Dataset type identifier — a
+                :class:`DatasetType` member or its string value
+                (e.g. ``"1min"``).
+            drop_empty_columns (bool): Drop columns that are entirely NaN
+                after normalisation. Only applied when ``normalize`` is
+                ``True``. Defaults to ``False``.
+            normalize (bool): Replace NaN-sentinel strings with ``np.nan``
+                and coerce object columns to numeric. Defaults to ``True``.
+            use_cache (bool): Read from and write to the on-disk cache.
+                Caching only applies when ``normalize`` is also ``True``.
                 Defaults to ``True``.
 
         Returns:
-            LoadedDataset containing the DataFrame, resolved dataset type, and
-            absolute source path.
+            MultiGasData: Wraps the loaded DataFrame, resolved
+                :class:`DatasetType`, and absolute source path.
 
         Raises:
-            LoaderError: If the file does not exist or cannot be parsed.
+            LoaderError: If ``dataset_type`` is invalid, the file is missing,
+                or the source cannot be parsed.
 
         Example:
             >>> loader = DataLoader()
-            >>> ds = loader.load("data/site_a.csv", dataset_type="co2")
+            >>> ds = loader.load("data/site_a.dat", dataset_type="1min")
             >>> ds.df.head()
         """
         try:
@@ -82,31 +128,30 @@ class DataLoader:
         except ValueError as e:
             raise LoaderError(f"Invalid dataset_type: {e}") from e
 
-        if use_cache:
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise LoaderError(f"File not found: {file_path}")
+
+        self.basename = file_path.stem
+
+        if use_cache and not self.overwrite:
             ensure_dir(self.cache_dir)
             if self.verbose:
                 logger.info(f"Cache dir: {self.cache_dir}")
 
-        file_path = Path(file_path)
-
-        if not file_path.exists():
-            raise LoaderError(f"File not found: {file_path}")
-
-        # Try to load from cache first
-        if use_cache and normalize:
-            try:
-                cached_df = self._load_from_cache(file_path)
-                if cached_df is not None:
-                    return LoadedDataset(
-                        df=cached_df,
-                        dataset_type=dataset_type,
-                        source_path=file_path.absolute(),
-                    )
-            except CacheError:
-                # Cache miss or invalid, continue to load from source
-                if self.verbose:
-                    logger.info(f"Cache miss for {file_path}. Loading from source.")
-                pass
+        # Try to load from cache first. `_load_from_cache` returns None on
+        # any soft failure (miss, stale, or corrupted), so no exception
+        # handling is needed here.
+        if use_cache and normalize and not self.overwrite:
+            cached_df = self._load_from_cache(file_path)
+            if cached_df is not None:
+                return MultiGasData(
+                    df=cached_df,
+                    dataset_type=dataset_type,
+                    source_path=file_path.absolute(),
+                )
+            elif self.verbose:
+                logger.info(f"Cache miss for {file_path}. Loading from source.")
 
         # Load from source file
         try:
@@ -114,18 +159,11 @@ class DataLoader:
 
             # Normalize if requested
             if normalize:
-                df = self._normalize(df)
-
-                # Save to cache for next time
+                df = self._normalize(df, drop_empty_columns=drop_empty_columns)
                 if use_cache:
-                    try:
-                        self._save_to_cache(file_path, df)
-                    except CacheError:
-                        # Cache save failed, but we have the data so continue
-                        logger.warning(f"Failed to save cache in: {file_path}")
-                        pass
+                    save_cache(df, file_path, self.cache_dir, verbose=self.verbose)
 
-            return LoadedDataset(
+            return MultiGasData(
                 df=df,
                 dataset_type=dataset_type,
                 source_path=file_path.absolute(),
@@ -181,14 +219,14 @@ class DataLoader:
         # TOA5 files have a format marker and 4 header rows before data.
         with file_path.open(mode="r", encoding="utf-8", errors="ignore") as source_file:
             first_line = source_file.readline()
-        is_toa5 = first_line.startswith("TOA5")
+        is_toa5 = first_line.split(",")[0].strip('"') == "TOA5"
 
         try:
             if is_toa5:
                 df = pd.read_csv(
                     file_path,
                     skiprows=[0, 2, 3],  # Skip header, units, sampling rows
-                    na_values=["NAN", "NaN", ""],
+                    na_values=["NAN", "NaN", "", "0"],
                     low_memory=False,
                 )
             else:
@@ -221,7 +259,9 @@ class DataLoader:
 
         return df
 
-    def _normalize(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _normalize(
+        self, df: pd.DataFrame, drop_empty_columns: bool = False
+    ) -> pd.DataFrame:
         """Replace NAN sentinel strings with ``np.nan`` and coerce numeric columns.
 
         Replaces the string values ``"NAN"``, ``"NaN"``, and ``""`` with
@@ -230,6 +270,8 @@ class DataLoader:
 
         Args:
             df: DataFrame to normalize.
+            drop_empty_columns: If ``True``, drop columns that are entirely NaN
+                after normalization and log how many were removed.
 
         Returns:
             Normalized DataFrame with numeric dtypes where possible.
@@ -242,10 +284,15 @@ class DataLoader:
             1
         """
         if self.verbose:
-            logger.info("Normalizing empty strings to np.nan ...")
+            logger.info("Normalizing data ...")
 
         # Replace "NAN" strings with actual NaN
         df = df.replace(["NAN", "NaN", ""], np.nan)
+
+        # Drop rows where RECORD is missing, then cast to integer
+        if "RECORD" in df.columns:
+            df = df.dropna(subset=["RECORD"])
+            df["RECORD"] = df["RECORD"].astype(int)
 
         # Convert clearly numeric object columns only.
         for index, _ in enumerate(df.columns):
@@ -264,8 +311,18 @@ class DataLoader:
                 if converted_non_null_count == non_null_count:
                     df.isetitem(index, converted_series.to_numpy())
 
+        if drop_empty_columns:
+            before = len(df.columns)
+            df = df.dropna(axis=1, how="all")
+            dropped = before - len(df.columns)
+            logger.info(f"Dropped {dropped} empty column(s).")
+
+        ensure_dir(self.normalize_dir)
+        normalized_path = self.normalize_dir / f"{self.basename}.csv"
+        df.to_csv(normalized_path)
+
         if self.verbose:
-            logger.info("DataFrame normalized.")
+            logger.info(f"Saved normalized file to {normalized_path}")
 
         return df
 
@@ -273,18 +330,17 @@ class DataLoader:
         """Load a DataFrame from cache if the cache entry is still valid.
 
         Validates the cached entry by comparing the stored mtime against the
-        current mtime of ``file_path``.  Stale or corrupted cache files are
-        deleted automatically.
+        current mtime of ``file_path``. Stale or corrupted cache files are
+        deleted automatically. A corrupted cache is a soft failure — the
+        method logs a warning, removes the bad file, and returns ``None`` so
+        the caller can transparently reload from source.
 
         Args:
             file_path: Absolute path to the original source file.
 
         Returns:
             Cached DataFrame when a valid entry exists, ``None`` on a cache
-            miss or stale entry.
-
-        Raises:
-            CacheError: If the cache file exists but cannot be deserialized.
+            miss, stale entry, or corrupted cache file.
 
         Example:
             >>> loader = DataLoader()
@@ -298,10 +354,10 @@ class DataLoader:
             return None
 
         try:
-            cached_data = joblib.load(cache_path)
-
             if self.verbose:
-                logger.info(f"Loaded from cache: {cache_path}")
+                logger.info(f"Loading from cache: {cache_path}")
+
+            cached_data = joblib.load(cache_path)
 
             # Validate cache metadata
             if isinstance(cached_data, dict):
@@ -321,72 +377,16 @@ class DataLoader:
 
             # Cache is invalid
             cache_path.unlink(missing_ok=True)
+
+            if self.verbose:
+                logger.warning(f"Cache invalid: {cache_path}")
+
             return None
 
         except Exception as e:
-            # Cache is corrupted, delete it
+            # Corrupted cache is a soft failure: delete the bad file, warn,
+            # and return None so the caller falls back to reloading from
+            # source without treating it as a real error.
             cache_path.unlink(missing_ok=True)
-            raise CacheError(f"Cache read failed: {e}") from e
-
-    def _save_to_cache(self, file_path: Path, df: pd.DataFrame) -> None:
-        """Persist a DataFrame to the on-disk cache.
-
-        Stores the DataFrame alongside metadata (absolute path and mtime) so
-        that ``_load_from_cache`` can validate the entry on subsequent reads.
-        The file is compressed at level 3 via ``joblib``.
-
-        Args:
-            file_path: Absolute path to the original source file.
-            df: Normalized DataFrame to cache.
-
-        Raises:
-            CacheError: If the cache file cannot be written.
-
-        Example:
-            >>> loader = DataLoader(cache_dir="/tmp/cache")
-            >>> loader._save_to_cache(Path("data/site_a.csv"), df)
-        """
-        cache_path = get_cache_path(self.cache_dir, file_path)
-
-        try:
-            cached_data = {
-                "dataframe": df,
-                "metadata": {
-                    "file_path": str(file_path.absolute()),
-                    "mtime": file_path.stat().st_mtime,
-                    "mtime_ns": file_path.stat().st_mtime_ns,
-                    "size": file_path.stat().st_size,
-                },
-            }
-
-            joblib.dump(cached_data, cache_path, compress=3)
-
-            if self.verbose:
-                logger.info(f"Cache saved to {cache_path}.")
-
-        except Exception as e:
-            raise CacheError(f"Cache write failed: {e}") from e
-
-    def clear_cache(self) -> int:
-        """Delete all ``.pkl`` cache files from ``cache_dir``.
-
-        Returns:
-            Number of cache files successfully deleted.
-
-        Example:
-            >>> loader = DataLoader(cache_dir="/tmp/cache")
-            >>> loader.clear_cache()
-            3
-        """
-        count = 0
-        for cache_file in self.cache_dir.glob("*.pkl"):
-            try:
-                cache_file.unlink()
-                count += 1
-            except Exception as e:
-                logger.warning(f"Failed to delete cache file {cache_file}: {e}")
-
-        if self.verbose:
-            logger.info(f"Deleted {count} cache files.")
-
-        return count
+            logger.warning(f"Cache invalid, will reload: {cache_path} ({e})")
+            return None

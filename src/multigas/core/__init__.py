@@ -1,3 +1,5 @@
+"""Core types, exceptions, and query infrastructure for multigas."""
+
 from multigas.core.types import (
     DateLike,
     LogLevel,
@@ -5,7 +7,7 @@ from multigas.core.types import (
     Comparator,
     FileFormat,
     DatasetType,
-    LoadedDataset,
+    MultiGasData,
     DatasetMetadataDict,
 )
 from multigas.core.exceptions import (
@@ -32,7 +34,7 @@ __all__ = [
     "FileFormat",
     "DatasetType",
     "DatasetMetadataDict",
-    "LoadedDataset",
+    "MultiGasData",
     # Exceptions
     "PlotError",
     "CacheError",

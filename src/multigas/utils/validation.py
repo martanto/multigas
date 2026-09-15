@@ -1,4 +1,14 @@
-from typing import Literal
+"""Validation helpers for DataFrames and column names.
+
+Provides two families of checks used across the package:
+
+- Sampling-rate validation via :func:`check_sampling_consistency`, which
+  splits a DataFrame into consistent / inconsistent slices based on a
+  target frequency and tolerance.
+- Column-name validation via :func:`validate_columns` (hard-fail),
+  :func:`validate_column` (log-only), and :func:`validate_dataframe_column`
+  (log-only, DataFrame-aware).
+"""
 
 import pandas as pd
 
@@ -7,8 +17,8 @@ from multigas.logging import logger
 
 def check_sampling_consistency(
     df: pd.DataFrame,
-    expected_freq: Literal["1s", "2s", "6h", "1min"] = "1min",
-    tolerance: str = "1min",
+    expected_freq: str = "10min",
+    tolerance: str | None = None,
     verbose: bool = False,
 ) -> tuple[bool, pd.DataFrame, pd.DataFrame, int | None]:
     """Check sampling rate consistency and identify inconsistencies.
@@ -19,10 +29,11 @@ def check_sampling_consistency(
 
     Args:
         df (pd.DataFrame): DataFrame with pd.DatetimeIndex.
-        expected_freq (Literal["1s", "2s", "6h", "1min"], optional):
-            Expected sampling frequency. Defaults to "1min".
-        tolerance (str, optional): Tolerance for considering sampling periods as equal
-            (e.g., "1min", "30s"). Defaults to "1min".
+        expected_freq (str, optional): Expected sampling frequency (e.g., "10min", "1H").
+            Defaults to "10min".
+        tolerance (str | None, optional): Tolerance for considering sampling periods as
+            equal (e.g., "1min", "30s"). If None, no tolerance is applied and intervals
+            must match exactly. Defaults to None.
         verbose (bool, optional): If True, print detailed information about inconsistencies.
             Defaults to False.
 
@@ -39,7 +50,7 @@ def check_sampling_consistency(
 
     Examples:
         >>> df = pd.DataFrame({"value": [1, 2, 3]},
-        ...                   index=pd.date_range("2025-01-01", periods=3, freq="1min"))
+        ...                   index=pd.date_range("2025-01-01", periods=3, freq="10min"))
         >>> is_consistent, consistent, inconsistent, rate = check_sampling_consistency(df)
         >>> print(is_consistent)
         True
@@ -56,13 +67,14 @@ def check_sampling_consistency(
 
     time_diffs = df.index.to_series().diff()
     expected_diff = pd.Timedelta(expected_freq)
-    tolerance_diff = pd.Timedelta(tolerance)
-    lower_bound = expected_diff - tolerance_diff
-    upper_bound = expected_diff + tolerance_diff
 
-    inconsistent_mask: pd.Series = ~(
-        (time_diffs >= lower_bound) & (time_diffs <= upper_bound)
-    )
+    if tolerance is None:
+        inconsistent_mask: pd.Series = time_diffs != expected_diff
+    else:
+        tolerance_diff = pd.Timedelta(tolerance)
+        lower_bound = expected_diff - tolerance_diff
+        upper_bound = expected_diff + tolerance_diff
+        inconsistent_mask = ~((time_diffs >= lower_bound) & (time_diffs <= upper_bound))
     inconsistent_mask.iloc[0] = False
 
     inconsistent_data = df[inconsistent_mask]
@@ -122,3 +134,46 @@ def validate_columns(
             f"Missing required columns: {missing_columns}. "
             f"Available columns: {df.columns.tolist()}"
         )
+
+
+def validate_column(column: str, columns: list[str]) -> None:
+    """Ensure that a column name exists in a list of column names.
+
+    Logs an error message when the column is absent. Does not raise; callers
+    that need a hard failure should use :func:`validate_columns` instead.
+
+    Args:
+        column: Column name to look up.
+        columns: Reference list of available column names.
+
+    Example:
+        >>> validate_column("CO2", ["CO2", "SO2"])  # no output
+        >>> validate_column("H2S", ["CO2", "SO2"])
+        # ERROR: `H2S` is not a valid column name. Available columns: ['CO2', 'SO2']
+    """
+    if column not in columns:
+        logger.error(
+            f"`{column}` is not a valid column name. Available columns: {columns}"
+        )
+
+
+def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
+    """Ensure column exists in provided dataframe.
+
+    Args:
+        df (pd.DataFrame): DataFrame to inspect.
+        column (str): Column name to look up.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If ``column`` is not present in ``df``.
+
+    Example:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"a": [1, 2]})
+        >>> validate_dataframe_column(df, "a")  # no error
+    """
+    columns: list[str] = df.columns.tolist()
+    validate_column(column, columns)

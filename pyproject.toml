@@ -19,6 +19,7 @@ dependencies = [
     "numpy>=2.4.4",
     "openpyxl>=3.1.5",
     "pandas>=3.0.2",
+    "pandas-stubs~=3.0.2",
     "python-dotenv>=1.2.2",
 ]
 
@@ -34,13 +35,19 @@ classifiers = [
 [dependency-groups]
 dev = [
     "uv-build",
-    "ruff",
-    "ty",
     "ipykernel",
     "notebook",
-    "pytest>=9.0.2",
-    "ipywidgets>=8.1.8",
+    "ipywidgets",
     "pandas-stubs>=3.0.0.260204",
+    {include-group = "lint"},
+    {include-group = "test"},
+]
+lint = [
+    "ruff",
+    "ty",
+]
+test = [
+  "pytest"
 ]
 
 [tool.uv]
