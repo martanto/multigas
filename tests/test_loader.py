@@ -5,7 +5,7 @@ import pandas as pd
 
 from multigas.core.types import DatasetType
 from multigas.data.loader import DataLoader
-from multigas.utils.cache import get_cache_path
+from multigas.utils.cache import get_cache_path, load_cache
 from multigas.utils.path import ensure_dir
 
 
@@ -39,7 +39,7 @@ def test_normalize_preserves_non_numeric_text_columns() -> None:
     assert normalized["status"].tolist() == ["ok", "fail"]
 
 
-def test_load_from_cache_invalidates_on_size_mismatch(tmp_path) -> None:
+def test_load_cache_invalidates_on_size_mismatch(tmp_path) -> None:
     cache_dir = tmp_path / "cache"
     source_path = tmp_path / "source.csv"
     source_path.write_text(
@@ -47,7 +47,6 @@ def test_load_from_cache_invalidates_on_size_mismatch(tmp_path) -> None:
         encoding="utf-8",
     )
     ensure_dir(cache_dir)
-    loader = DataLoader(cache_dir=cache_dir)
 
     stat = source_path.stat()
     cache_path = get_cache_path(cache_dir, source_path)
@@ -66,7 +65,7 @@ def test_load_from_cache_invalidates_on_size_mismatch(tmp_path) -> None:
         compress=3,
     )
 
-    loaded_df = loader._load_from_cache(source_path)
+    loaded_df = load_cache(source_path, cache_dir)
 
     assert loaded_df is None
     assert cache_path.exists() is False

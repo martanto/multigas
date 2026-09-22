@@ -15,15 +15,25 @@ For a one-call convenience wrapper see :func:`multigas.core.io.read_file`.
 from pathlib import Path
 
 import numpy as np
-import joblib
 import pandas as pd
 
 from multigas.core import DatasetMetadataDict
 from multigas.logging import logger
 from multigas.core.types import DatasetType, MultiGasData
 from multigas.utils.path import ensure_dir
-from multigas.utils.cache import save_cache, get_cache_path
+from multigas.utils.cache import load_cache, save_cache
 from multigas.core.exceptions import LoaderError
+from multigas.utils.validation import check_sampling_consistency
+
+
+_SAMPLING_FREQUENCIES: frozenset[DatasetType] = frozenset(
+    {
+        DatasetType.ONE_SECOND,
+        DatasetType.TWO_SECONDS,
+        DatasetType.SIX_HOURS,
+        DatasetType.ONE_MINUTE,
+    }
+)
 
 
 class DataLoader:
@@ -168,7 +178,7 @@ class DataLoader:
                 logger.info(f"Cache dir: {self.cache_dir}")
 
         if use_cache and normalize and not self.overwrite:
-            cached_df = self._load_from_cache(file_path)
+            cached_df = load_cache(file_path, self.cache_dir, verbose=self.verbose)
             if cached_df is not None:
                 return MultiGasData(
                     df=cached_df,
@@ -189,6 +199,21 @@ class DataLoader:
                     drop_empty_columns=drop_empty_columns,
                     source_path=file_path,
                 )
+
+                # Sampling-consistency only applies to fixed-frequency modes;
+                # ZERO/SPAN/WX are categorical calibration/weather streams.
+                if dataset_type in _SAMPLING_FREQUENCIES:
+                    (
+                        _is_consistent,
+                        df,
+                        _df_inconsistent_data,
+                        _sampling_rate,
+                    ) = check_sampling_consistency(
+                        df=df,
+                        expected_freq=dataset_type.value,
+                        verbose=self.verbose,
+                    )
+
                 if use_cache:
                     save_cache(df, file_path, self.cache_dir, verbose=self.verbose)
 
@@ -379,68 +404,3 @@ class DataLoader:
                 logger.info(f"Saved normalized file to {normalized_path}")
 
         return df
-
-    def _load_from_cache(self, file_path: Path) -> pd.DataFrame | None:
-        """Load a DataFrame from cache if the cache entry is still valid.
-
-        Validates the cached entry by comparing the stored mtime against the
-        current mtime of ``file_path``. Stale or corrupted cache files are
-        deleted automatically. A corrupted cache is a soft failure — the
-        method logs a warning, removes the bad file, and returns ``None`` so
-        the caller can transparently reload from source.
-
-        Args:
-            file_path: Absolute path to the original source file.
-
-        Returns:
-            Cached DataFrame when a valid entry exists, ``None`` on a cache
-            miss, stale entry, or corrupted cache file.
-
-        Example:
-            >>> loader = DataLoader()
-            >>> df = loader._load_from_cache(Path("data/site_a.csv"))
-            >>> df is None  # cache miss on first run
-            True
-        """
-        cache_path = get_cache_path(self.cache_dir, file_path)
-
-        if not cache_path.exists():
-            return None
-
-        try:
-            if self.verbose:
-                logger.info(f"Loading from cache: {cache_path}")
-
-            cached_data = joblib.load(cache_path)
-
-            # Validate cache metadata
-            if isinstance(cached_data, dict):
-                df = cached_data.get("dataframe")
-                metadata = cached_data.get("metadata", {})
-
-                # Check if cache is still valid
-                stat = file_path.stat()
-                mtime_ns = metadata.get("mtime_ns")
-                size = metadata.get("size")
-
-                if mtime_ns is not None and size is not None:
-                    if mtime_ns == stat.st_mtime_ns and size == stat.st_size:
-                        return df
-                elif metadata.get("mtime") == stat.st_mtime:
-                    return df
-
-            # Cache is invalid
-            cache_path.unlink(missing_ok=True)
-
-            if self.verbose:
-                logger.warning(f"Cache invalid: {cache_path}")
-
-            return None
-
-        except Exception as e:
-            # Corrupted cache is a soft failure: delete the bad file, warn,
-            # and return None so the caller falls back to reloading from
-            # source without treating it as a real error.
-            cache_path.unlink(missing_ok=True)
-            logger.warning(f"Cache invalid, will reload: {cache_path} ({e})")
-            return None
