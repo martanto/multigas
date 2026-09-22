@@ -284,7 +284,7 @@ WIND_DIRECTIONS_16: list[dict[str, Any]] = [
         "degree": 337.5,
         "min_degree": 326.25,
         "max_degree": 348.75,
-        "range_degree": "337.5 - 348.75",
+        "range_degree": "326.25 - 348.75",
     },
 ]
 
