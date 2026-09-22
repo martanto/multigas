@@ -77,6 +77,9 @@ class Query:
         df = to_dateime_index(df, index_col)
         df_original: pd.DataFrame = df.copy()
 
+        if df.empty:
+            raise ValueError("Dataframe is empty.")
+
         self.df: pd.DataFrame = df
         self.index_col: str = index_col
 
