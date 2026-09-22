@@ -224,6 +224,57 @@ dropped).
 
 ---
 
+## Exporting
+
+`MultiGasData` can persist its current working DataFrame to disk in two
+tabular formats. Both methods return the string path of the written
+file, create the parent directory on demand, and default to writing
+under `<cwd>/output/<format>/<dataset_type>/<source_stem>.<ext>` when
+called with no argument.
+
+```python
+# Write CSV to output/csv/<dataset_type>/<source_stem>.csv
+ds.to_csv()
+
+# Write Excel to output/excel/<dataset_type>/<source_stem>.xlsx
+ds.to_excel()
+
+# Explicit path — suffix is appended if missing.
+ds.to_csv("exports/site_a_filtered.csv")
+ds.to_excel("exports/site_a_filtered.xlsx")
+```
+
+Excel output uses the `openpyxl` engine (a core runtime dependency).
+
+### Extract one CSV per day
+
+`extract_daily` splits the working DataFrame by calendar day and writes
+one CSV per day under
+`<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`, returning a
+summary of per-day stats (row count and completeness percentage).
+
+```python
+# Write daily CSVs under <cwd>/output/daily/<dataset_type>/
+summary = ds.extract_daily()
+
+summary.head()
+#          date  total_data  completeness
+# 0  2025-01-01        1440         100.0
+# 1  2025-01-02        1200          83.33
+# 2  2025-01-03           0           0.0   # missing day — logged as WARNING
+
+# Or pick a custom root and get the raw list back
+stats = ds.extract_daily("exports/", return_as_list=True)
+```
+
+`completeness` is computed by [`calculate_completeness`](API-Reference.md#multigasutilsdataframe)
+against `DatasetType.total_data`; over-sampled days are capped at
+`100.0` and log a `WARNING`. Missing days (no rows for that date) get
+`total_data=0` / `completeness=0.0` and are enumerated in a single
+`WARNING` line at the end of the run.
+
+---
+
 ## Enabling Logging
 
 The package's `loguru` logger is silent by default. Handlers are only

@@ -17,6 +17,9 @@ required.
   - [`MultiGasData`](#multigasdata)
     - [`add_wind_direction`](#add_wind_direction)
     - [`add_wind_quadrant`](#add_wind_quadrant)
+    - [`extract_daily`](#extract_daily)
+    - [`to_csv`](#to_csv)
+    - [`to_excel`](#to_excel)
 - [Query mixin (inherited by `MultiGasData`)](#query-mixin)
   - Properties: [`missing_columns`](#missing_columns), [`empty_columns`](#empty_columns)
   - [`select_columns`](#select_columns)
@@ -212,10 +215,12 @@ and row filtering chain directly on the result.
 | `index_col` | `str` | `"TIMESTAMP"` | Column used as the datetime index. |
 | `verbose` | `bool` | `False` | Whether Query operations emit log messages. |
 
-`__post_init__` calls `Query.__init__(self.df, self.index_col, self.verbose)`,
-which promotes `index_col` to a `pd.DatetimeIndex`, stashes a pristine
-`df_original`, and computes `numeric_columns` and the `start_date` /
-`end_date` bounds.
+`__init__` delegates to `super().__init__(df, index_col, verbose)` (i.e.
+[`Query.__init__`](#query-mixin)), which promotes `index_col` to a
+`pd.DatetimeIndex`, stashes a pristine `df_original`, and computes
+`numeric_columns` and the `start_date` / `end_date` bounds. The
+`dataset_type` and `source_path` fields are assigned after the
+super-call.
 
 #### `add_wind_direction`
 
@@ -264,6 +269,69 @@ are normalised modulo 360; `NaN` inputs produce `None`.
 
 **Raises:** `ColumnError` if the source column is missing; `ValidationError`
 if a finite bearing cannot be mapped to any quadrant.
+
+#### `to_csv`
+
+```python
+MultiGasData.to_csv(path: str | None = None) -> str
+```
+
+Write the working DataFrame to a CSV file. When `path` is omitted, the
+file is written to `<cwd>/output/csv/<dataset_type>/<source_stem>.csv`.
+Any explicit `path` is used verbatim, with a `.csv` suffix appended when
+missing. The parent directory is created on demand.
+
+| Arg | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/csv/<dataset_type>/` using the source file's stem. |
+
+**Returns:** `str` — string representation of the written file path.
+
+#### `to_excel`
+
+```python
+MultiGasData.to_excel(path: str | None = None) -> str
+```
+
+Write the working DataFrame to an Excel (`.xlsx`) file. When `path` is
+omitted, the file is written to
+`<cwd>/output/excel/<dataset_type>/<source_stem>.xlsx`. Any explicit
+`path` is used verbatim, with a `.xlsx` suffix appended when missing.
+The parent directory is created on demand. Excel writing uses the
+`openpyxl` engine (a core runtime dependency).
+
+| Arg | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/excel/<dataset_type>/` using the source file's stem. |
+
+**Returns:** `str` — string representation of the written file path.
+
+#### `extract_daily`
+
+```python
+MultiGasData.extract_daily(
+    output_dir: Path | str | None = None,
+    return_as_list: bool = False,
+) -> list[ExtractedStats] | pd.DataFrame
+```
+
+Split the working DataFrame by calendar day and write one CSV per day.
+Iterates every day between the first and last timestamp of `df` (inclusive,
+based on `df.index.min().normalize()` / `.max().normalize()`), writing the
+rows for each day to `<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`
+and collecting per-day stats via
+[`calculate_completeness`](#multigasutilsdataframe) with `as_percentage=True`.
+Days without data are recorded as `total_data=0` / `completeness=0.0`, and
+the full list of missing days is logged as a `WARNING` at the end.
+
+| Arg | Type | Default | Description |
+|---|---|---|---|
+| `output_dir` | `Path \| str \| None` | `None` | Destination root. When `None`, files are written under `<cwd>/output/`. |
+| `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage). |
+
+**Returns:** `list[ExtractedStats] | pd.DataFrame` — per-day stats, one
+entry per calendar day in the source range. `completeness` is a
+percentage in `[0, 100]`.
 
 ---
 
@@ -556,6 +624,22 @@ Module: `multigas.core.types` (re-exported from `multigas.core`).
 Unknown values raise `ValueError` via the custom `_missing_` hook and the
 error message lists every valid value.
 
+**`.total_data` property** — expected number of records per day for
+sampling-interval members (used by
+[`calculate_completeness`](#multigasutilsdataframe)):
+
+| Member | `.total_data` |
+|---|---|
+| `ONE_SECOND` | `86400` |
+| `TWO_SECONDS` | `5760` |
+| `ONE_MINUTE` | `1440` |
+| `SIX_HOURS` | `4` |
+| `ZERO` | `4` |
+
+`SPAN` and `WX` are categorical streams with no fixed per-day cadence —
+accessing `.total_data` on either raises `ValueError` naming the members
+that *are* supported.
+
 ### `SensorStatus`
 
 `IntEnum` mapping datalogger status codes to `.description` strings.
@@ -607,6 +691,7 @@ Module: `multigas.core.types`.
 | `ColumnName` | `str` | Alias for a DataFrame column name; kept explicit for readability. |
 | `Comparator` | `str` | Alias for a comparison operator string (e.g. `">="`, `"=="`). |
 | `DatasetMetadataDict` | `TypedDict(total=False)` | Optional TOA5 header fields — see table below. |
+| `ExtractedStats` | `TypedDict` | Per-day summary returned by [`MultiGasData.extract_daily`](#extract_daily). Keys: `date` (`str`, `"YYYY-MM-DD"`), `total_data` (`int`, rows written for that day), `completeness` (`float`, percentage in `[0, 100]`). |
 
 `DatasetMetadataDict` keys (all optional):
 
@@ -619,6 +704,14 @@ Module: `multigas.core.types`.
 | `file_sampling` | `str` | Sampling declaration recorded in the header. |
 | `serial_number` | `str` | Datalogger serial number. |
 | `os_version` | `str` | OS version string reported by the logger. |
+
+`ExtractedStats` keys (all required):
+
+| Key | Type | Description |
+|---|---|---|
+| `date` | `str` | Calendar day, formatted as `"YYYY-MM-DD"`. |
+| `total_data` | `int` | Number of rows written for that day; `0` when the day has no data. |
+| `completeness` | `float` | Percentage in `[0, 100]`, from `calculate_completeness(total_data, dataset_type, as_percentage=True)`. `0.0` for missing days. |
 
 ---
 
@@ -725,10 +818,10 @@ calls are no-ops.
 | Function | Signature | Description |
 |---|---|---|
 | `to_datetime_index` | `(df: pd.DataFrame, index_col: str) -> pd.DataFrame` | Promote `index_col` to a sorted `pd.DatetimeIndex`. Returns the frame unchanged when the index is already a `DatetimeIndex`. Raises `ColumnError` (missing column) or `ValidationError` (unparsable values). This is the single canonical converter — do not hand-roll `df.set_index(...) / pd.to_datetime(...)` elsewhere. |
-| `to_dateime_index` | — | **Deprecated alias** for `to_datetime_index`, kept only for backwards compatibility. Do not use in new code. |
 | `get_dates` | `(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]` | Return `(start_date, end_date, start_date_str, end_date_str)` — strings formatted as `"YYYY-MM-DD"`. Raises `TypeError` when the index is not a `DatetimeIndex`. |
 | `convert_to_wind_direction` | `(direction_degree: float, wind_directions: list[dict[str, Any]], as_code: bool = False) -> str \| None` | Map a single compass bearing to its sector label. `NaN` → `None`; values outside `[0, 360)` are normalised mod 360. Raises `ValidationError` if a finite bearing falls outside every bin. |
 | `convert_to_wind_quadrant` | `(direction_degree: float, wind_quadrants: list[dict[str, Any]] \| None = None, as_code: bool = False) -> str \| None` | Map a single compass bearing to its quadrant label. `wind_quadrants` defaults to `WIND_QUADRANTS_8`. Same NaN and normalisation rules as `convert_to_wind_direction`. |
+| `calculate_completeness` | `(total_data: int, dataset_type: DatasetType, as_percentage: bool = False) -> float` | Divide `total_data` by [`DatasetType.total_data`](#datasettype) to yield a fraction in `[0, 1]`, or a percentage in `[0, 100]` when `as_percentage=True`. When the raw ratio exceeds `1.0`, a `WARNING` is logged (naming `total_data`, the expected count, and the `DatasetType`) and the returned value is capped at `1.0` / `100.0`. Raises `ValueError` when `dataset_type` is `SPAN` or `WX` (no fixed daily count). |
 
 ---
 
