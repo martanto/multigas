@@ -12,10 +12,12 @@ Example:
     >>> ds.select_numeric_columns().df.head()
 """
 
+import os
 from typing import Self, Literal
 from pathlib import Path
 
 import pandas as pd
+from joblib import Parallel, delayed
 
 from multigas.logging import logger
 from multigas.core.query import Query
@@ -214,6 +216,7 @@ class MultiGasData(Query):
         self,
         output_dir: Path | str | None = None,
         return_as_list: bool = False,
+        n_jobs: int = 1,
     ) -> list[ExtractedStats] | pd.DataFrame:
         """Split the working DataFrame by calendar day and write one CSV per day.
 
@@ -228,6 +231,15 @@ class MultiGasData(Query):
         recorded as ``total_data=0`` / ``completeness=0.0`` and the
         full list of missing days is logged at the end.
 
+        When ``n_jobs > 1``, per-day extraction runs in parallel via
+        :class:`joblib.Parallel` with the ``loky`` backend. The
+        effective worker count is capped at
+        ``max(1, os.cpu_count() - 2)``. Result order is preserved,
+        so the returned per-day stats stay date-ordered. Per-day
+        ``verbose`` info logs are suppressed in workers to avoid
+        interleaved multi-process output; the aggregated
+        missing-days warning is still emitted once at the end.
+
         Args:
             output_dir (Path | str | None): Destination root. When
                 ``None``, files are written under ``<cwd>/output/``.
@@ -237,6 +249,11 @@ class MultiGasData(Query):
                 :class:`pandas.DataFrame` with columns ``date``,
                 ``total_data``, ``completeness`` (percentage).
                 Defaults to ``False``.
+            n_jobs (int): Number of parallel workers. ``1`` (the
+                default) runs sequentially. Values ``> 1`` are
+                capped at ``max(1, os.cpu_count() - 2)`` and
+                dispatched to :class:`joblib.Parallel` with the
+                ``loky`` backend.
 
         Returns:
             list[ExtractedStats] | pd.DataFrame: Per-day stats, one
@@ -248,6 +265,7 @@ class MultiGasData(Query):
                      date  total_data  completeness
             0  2024-01-01        1440         100.0
             1  2024-01-02        1200         83.33
+            >>> ds.extract_daily("exports/", n_jobs=4)  # parallel
         """
         if output_dir is None:
             output_dir = Path.cwd() / "output"
@@ -264,55 +282,162 @@ class MultiGasData(Query):
             freq="D",
         )
 
-        extracted_files: list[ExtractedStats] = []
-        missing_dates: list[str] = []
-        for date in dates:
-            date_str = date.strftime("%Y-%m-%d")
-            output_file = daily_dir / f"{date_str}.csv"
+        if n_jobs > 1:
+            max_jobs = max(1, (os.cpu_count() or 1) - 2)
+            n_jobs = min(n_jobs, max_jobs)
 
-            if self.verbose:
-                logger.info(f"{date_str} :: Extracting ...")
+        jobs = self._build_jobs(dates, df, daily_dir)
 
-            try:
-                df_daily = df.loc[date_str]
-            except KeyError:
-                df_daily = df.iloc[0:0]
-
-            if df_daily.empty:
-                extracted_files.append(
-                    ExtractedStats(date=date_str, total_data=0, completeness=0.0)
+        if n_jobs == 1:
+            results = [
+                MultiGasData._extract_one_day(
+                    date_str,
+                    df_daily,
+                    output_file,
+                    self.dataset_type,
+                    verbose=self.verbose,
                 )
-                missing_dates.append(date_str)
-                continue
-
-            total_data = len(df_daily)
-            extracted_files.append(
-                ExtractedStats(
-                    date=date_str,
-                    total_data=total_data,
-                    completeness=calculate_completeness(
-                        total_data,
-                        self.dataset_type,
-                        as_percentage=True,
-                    ),
+                for date_str, df_daily, output_file in jobs
+            ]
+        else:
+            results = Parallel(n_jobs=n_jobs, backend="loky")(
+                delayed(MultiGasData._extract_one_day)(
+                    date_str,
+                    df_daily,
+                    output_file,
+                    self.dataset_type,
+                    verbose=self.verbose,
                 )
+                for date_str, df_daily, output_file in jobs
             )
 
-            df_daily.to_csv(output_file, index=True)
-
-            if self.verbose:
-                logger.info(f"{date_str} :: Extracted to: {output_file}")
+        extracted_files: list[ExtractedStats] = []
+        missing_dates: list[str] = []
+        for stats, is_missing in results:
+            extracted_files.append(stats)
+            if is_missing:
+                missing_dates.append(stats["date"])
 
         if missing_dates:
             logger.warning(
-                f"Found {len(missing_dates)} missing dates for file "
-                f"{self.source_path}: {', '.join(missing_dates)}"
+                f"Found {len(missing_dates)} missing dates for file {self.source_path}"
             )
+            logger.warning(f"Missing files: {', '.join(missing_dates)}")
 
         if return_as_list:
             return extracted_files
 
         return pd.DataFrame(extracted_files)
+
+    def _build_jobs(
+        self,
+        dates: pd.DatetimeIndex,
+        df: pd.DataFrame,
+        daily_dir: Path,
+    ) -> list[tuple[str, pd.DataFrame, Path]]:
+        """Pre-slice the working DataFrame into per-day extraction jobs.
+
+        Each job is a ``(date_str, df_daily, output_file)`` tuple
+        that :meth:`_extract_one_day` can consume without needing
+        access to ``self``. Pre-slicing here — rather than passing
+        the full ``df`` and a date into each worker — keeps the
+        pickle payload sent to each :class:`joblib.Parallel` worker
+        small: only the per-day slice travels over the pipe.
+        Missing days come back as an empty DataFrame from the
+        ``df.loc[date_str:date_str]`` slice — no exception is
+        raised — and :meth:`_extract_one_day` handles them via
+        the ``.empty`` check.
+
+        Args:
+            dates (pd.DatetimeIndex): Calendar days to iterate over.
+            df (pd.DataFrame): Working DataFrame (a copy of
+                :attr:`df`) indexed by a :class:`pd.DatetimeIndex`.
+            daily_dir (Path): Directory into which each day's CSV
+                will be written.
+
+        Returns:
+            list[tuple[str, pd.DataFrame, Path]]: One job per date
+                in ``dates``, in the same order.
+
+        Example:
+            >>> jobs = ds._build_jobs(dates, ds.df.copy(), out_dir)
+            >>> jobs[0][0]
+            '2024-01-01'
+        """
+        jobs: list[tuple[str, pd.DataFrame, Path]] = []
+        for date in dates:
+            date_str = date.strftime("%Y-%m-%d")
+            output_file = daily_dir / f"{date_str}.csv"
+            df_daily = df.loc[date_str:date_str]
+            jobs.append((date_str, df_daily, output_file))
+        return jobs
+
+    @staticmethod
+    def _extract_one_day(
+        date_str: str,
+        df_daily: pd.DataFrame,
+        output_file: Path,
+        dataset_type: DatasetType,
+        verbose: bool,
+    ) -> tuple[ExtractedStats, bool]:
+        """Extract one day's rows to CSV and return its per-day stats.
+
+        Shared by the sequential and parallel branches of
+        :meth:`extract_daily`. Kept as a :func:`staticmethod` so it
+        can be dispatched by :class:`joblib.Parallel` without
+        pickling ``self`` — the loky worker only receives the
+        arguments explicitly passed here.
+
+        Args:
+            date_str (str): Calendar day formatted as ``YYYY-MM-DD``.
+            df_daily (pd.DataFrame): Rows for this day; a bare
+                :class:`pandas.DataFrame` signals a missing day and
+                triggers the ``total_data=0`` / ``completeness=0.0``
+                return.
+            output_file (Path): Target CSV path.
+            dataset_type (DatasetType): Dataset sampling interval,
+                forwarded to :func:`calculate_completeness`.
+            verbose (bool): Emit per-day info logs. Callers pass
+                ``False`` in the parallel branch to keep multi-process
+                log output tidy.
+
+        Returns:
+            tuple[ExtractedStats, bool]: The per-day stats and a
+                ``is_missing`` flag (``True`` when ``df_daily`` was
+                empty, ``False`` otherwise).
+
+        Example:
+            >>> MultiGasData._extract_one_day(
+            ...     "2024-01-01", df_daily, path, DatasetType.ONE_MINUTE,
+            ...     verbose=False,
+            ... )
+            (ExtractedStats(date='2024-01-01', total_data=1440, ...), False)
+        """
+        if verbose:
+            logger.info(f"{date_str} :: Extracting ...")
+
+        if df_daily.empty:
+            return (
+                ExtractedStats(date=date_str, total_data=0, completeness=0.0),
+                True,
+            )
+
+        total_data = len(df_daily)
+        stats = ExtractedStats(
+            date=date_str,
+            total_data=total_data,
+            completeness=calculate_completeness(
+                total_data,
+                dataset_type,
+                as_percentage=True,
+            ),
+        )
+        df_daily.to_csv(output_file, index=True)
+
+        if verbose:
+            logger.info(f"{date_str} :: Extracted to: {output_file}")
+
+        return stats, False
 
     def to_csv(self, path: str | None = None) -> str:
         """Write the working DataFrame to a CSV file.
