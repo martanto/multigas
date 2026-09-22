@@ -185,6 +185,9 @@ def load_cache(
             mtime_ns = metadata.get("mtime_ns")
             size = metadata.get("size")
 
+            if verbose:
+                logger.info("Cache loaded successfully.")
+
             if mtime_ns is not None and size is not None:
                 if mtime_ns == stat.st_mtime_ns and size == stat.st_size:
                     return df
