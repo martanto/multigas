@@ -1,5 +1,5 @@
 from multigas import read_file
-from multigas.core import MultiGasData
+from multigas.data import MultiGasData
 from multigas.logging import logger
 
 

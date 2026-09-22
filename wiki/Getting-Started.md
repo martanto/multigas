@@ -50,8 +50,9 @@ uv run python -c "import multigas; print(multigas.__version__)"
 ## First Load
 
 The one-call convenience wrapper is `read_file`. It builds a `DataLoader`
-under the hood and returns a `MultiGasData` — a dataclass wrapping the
-loaded `pd.DataFrame`, its `DatasetType`, and the absolute source path.
+under the hood and returns a `MultiGasData` — a class (from
+`multigas.data.multigas_data`) wrapping the loaded `pd.DataFrame`, its
+`DatasetType`, and the absolute source path.
 
 ```python
 from multigas import read_file

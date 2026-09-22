@@ -13,7 +13,7 @@ required.
 - [Top-level exports](#top-level-exports)
   - [`read_file`](#read_file)
   - [`DataLoader`](#dataloader)
-- [Core dataclass](#core-dataclass)
+- [Core container class](#core-container-class)
   - [`MultiGasData`](#multigasdata)
     - [`add_wind_direction`](#add_wind_direction)
     - [`add_wind_quadrant`](#add_wind_quadrant)
@@ -182,20 +182,22 @@ flowchart LR
 
 ---
 
-## Core dataclass
+## Core container class
 
 ### `MultiGasData`
 
-Module: `multigas.core.types` (also `multigas.core.MultiGasData`)
+Module: `multigas.data.multigas_data` (also re-exported as `multigas.data.MultiGasData`)
 
 ```python
-@dataclass
 class MultiGasData(Query):
-    df: pd.DataFrame
-    dataset_type: DatasetType
-    source_path: Path
-    index_col: str = "TIMESTAMP"
-    verbose: bool = False
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        dataset_type: DatasetType,
+        source_path: Path,
+        index_col: str = "TIMESTAMP",
+        verbose: bool = False,
+    ): ...
 ```
 
 Wraps a loaded DataFrame together with its provenance metadata. Inherits
@@ -274,7 +276,7 @@ inherits from this class. Mutating methods change `self.df` in place; the
 pristine copy stays in `self.df_original` and is restored via
 [`refresh()`](#refresh).
 
-**Constructor (called from `MultiGasData.__post_init__`):**
+**Constructor (called from `MultiGasData.__init__` via `super().__init__`):**
 
 ```python
 Query(df: pd.DataFrame, index_col: str | None = None, verbose: bool = False)

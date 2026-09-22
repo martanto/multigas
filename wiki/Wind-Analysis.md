@@ -8,7 +8,7 @@ them to attach a label column to the DataFrame.
 > Back to [Home](Home.md) · Related: [API Reference → `MultiGasData`](API-Reference.md#multigasdata).
 
 Modules: `multigas.core.constant`, `multigas.utils.dataframe`,
-`multigas.core.types`.
+`multigas.data.multigas_data`.
 
 ---
 

@@ -2,7 +2,8 @@
 
 Home of :class:`DataLoader`, the full-control entry point for reading
 Campbell Scientific TOA5 or plain CSV files into a
-:class:`multigas.core.types.MultiGasData`. Loading is a three-step pipeline:
+:class:`multigas.data.multigas_data.MultiGasData`. Loading is a three-step
+pipeline:
 
 1. Cache lookup (skipped when ``overwrite=True`` or ``normalize=False``).
 2. On-disk read — TOA5 auto-detection first, plain CSV as fallback.
@@ -19,11 +20,12 @@ import pandas as pd
 
 from multigas.core import DatasetMetadataDict
 from multigas.logging import logger
-from multigas.core.types import DatasetType, MultiGasData
+from multigas.core.types import DatasetType
 from multigas.utils.path import ensure_dir
 from multigas.utils.cache import load_cache, save_cache
 from multigas.core.exceptions import LoaderError
 from multigas.utils.validation import check_sampling_consistency
+from multigas.data.multigas_data import MultiGasData
 
 
 _SAMPLING_FREQUENCIES: frozenset[DatasetType] = frozenset(
