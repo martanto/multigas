@@ -204,9 +204,7 @@ def load_cache(
         return None
 
 
-def clear_cache(
-    file_path: Path | str, cache_dir: Path | str, verbose: bool = False
-) -> None:
+def clear_cache(cache_dir: Path | str, verbose: bool = False) -> None:
     """Delete all ``.pkl`` cache files from a cache directory.
 
     Iterates over every ``*.pkl`` file in ``cache_dir`` and removes it. The
@@ -214,7 +212,6 @@ def clear_cache(
     cache files in the directory are deleted regardless of source.
 
     Args:
-        file_path: Unused. Accepted for API symmetry with other cache helpers.
         cache_dir: Directory whose ``.pkl`` files will be deleted.
         verbose: Log the total number of deleted files. Defaults to ``False``.
 
