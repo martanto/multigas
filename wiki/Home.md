@@ -16,14 +16,15 @@ dataloggers. Every dataset flowing through the package is inherently
 | [Home](Home.md) | Overview, repository map, navigation, glossary |
 | [Getting Started](Getting-Started.md) | Install, first load, fluent queries, wind analysis, dev workflow |
 | [API Reference](API-Reference.md) | Public methods, signatures, and parameter tables |
+| [Data Columns](Data-Columns.md) | Per-column dictionary for the datalogger's TOA5 / CSV output — meaning, units, and onboard processing |
+| [Wind Analysis](Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
 
 > Additional pages (e.g. `Data-Loading.md`, `Query-API.md`,
-> `Wind-Analysis.md`, `Caching.md`, `Contributing.md`) will be added
-> as the packages / project are completed. Add new pages here as rows
-> in the table above so this index stays the single navigation entry
-> point.
+> `Caching.md`, `Contributing.md`) will be added as the packages /
+> project are completed. Add new pages here as rows in the table
+> above so this index stays the single navigation entry point.
 
 ---
 

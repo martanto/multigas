@@ -21,6 +21,8 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 | [Home](wiki/Home.md) | Overview, repository map, navigation, glossary |
 | [Getting Started](wiki/Getting-Started.md) | Install, first load, fluent queries, wind analysis, dev workflow |
 | [API Reference](wiki/API-Reference.md) | Public methods, signatures, and parameter tables |
+| [Data Columns](wiki/Data-Columns.md) | Per-column dictionary for the datalogger's TOA5 / CSV output — meaning, units, and onboard processing |
+| [Wind Analysis](wiki/Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](wiki/Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](wiki/Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
 
