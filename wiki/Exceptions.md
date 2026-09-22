@@ -54,7 +54,7 @@ flowchart TD
 | `ColumnError` | `DatasetError` | Column is missing, duplicated, or has the wrong dtype. Message lists every missing name plus the full available set. | `check_columns_exist`, `validate_dataframe_column`, `Query.where`, `Query.where_values_between`, `MultiGasData.add_wind_direction`, `MultiGasData.add_wind_quadrant`, `Query.select_columns` / `select_numeric_columns` (when `validate=True`). |
 | `DateRangeError` | `DatasetError` | A requested date range cannot be applied to the dataset. | Reserved for future date-range validators. |
 | `ValidationError` | `MultigasException` | Input data fails a validation check. | `to_datetime_index` (index-parse failure), `Query.__init__` (empty DataFrame), `convert_to_wind_direction` / `convert_to_wind_quadrant` (bin miss). |
-| `CacheError` | `MultigasException` | Cache read or write fails (typically wraps a lower-level joblib or filesystem error). | `save_cache`. Note: `DataLoader._load_from_cache` treats a corrupted cache as a **soft failure** — it deletes the bad file, logs a `WARNING`, and returns `None` so the caller reloads from source. |
+| `CacheError` | `MultigasException` | Cache read or write fails (typically wraps a lower-level joblib or filesystem error). | `save_cache`. Note: `load_cache` (in `multigas.utils.cache`) treats a corrupted cache as a **soft failure** — it deletes the bad file, logs a `WARNING`, and returns `None` so the caller reloads from source. |
 | `LoaderError` | `MultigasException` | Source file cannot be located, parsed, or normalised, or `dataset_type` / `index_col` is invalid. | `DataLoader.load`, `DataLoader._load_csv`, `read_file`. |
 | `MetadataError` | `MultigasException` | TOA5 (or equivalent) metadata cannot be extracted. | Reserved for future TOA5 metadata parser. |
 | `PlotError` | `MultigasException` | A plotting routine cannot render its output. | Reserved for future plotting module. |
@@ -136,7 +136,7 @@ Not every problem in `multigas` is worth an exception. The convention
   there. Do **not** raise an exception the caller is guaranteed to
   swallow.
 
-Live example — `DataLoader._load_from_cache`:
+Live example — `multigas.utils.cache.load_cache`:
 
 ```python
 except Exception as e:

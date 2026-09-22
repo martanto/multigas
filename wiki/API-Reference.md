@@ -168,7 +168,7 @@ failure, or `index_col` missing.
 flowchart LR
     A["load(...)"] --> B{use_cache AND normalize<br/>AND NOT overwrite?}
     B -->|no| E["_load_csv()"]
-    B -->|yes| C["_load_from_cache()"]
+    B -->|yes| C["load_cache()"]
     C -->|hit| G["MultiGasData"]
     C -->|miss / stale| E
     E --> F{normalize?}
@@ -698,7 +698,7 @@ calls are no-ops.
 | `get_cache_key` | `(file_path: Path \| str) -> str` | MD5 hex digest of `"<absolute_path>_<mtime>"` — changes automatically when the source is modified. |
 | `get_cache_path` | `(cache_dir: Path \| str, file_path: Path \| str) -> Path` | Resolve the `.pkl` cache path inside `cache_dir`. |
 | `save_cache` | `(df: pd.DataFrame, file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> None` | Serialise the DataFrame together with file metadata (`mtime`, `mtime_ns`, `size`, path). Raises `CacheError` on failure. |
-| `load_cache` | `(file_path: Path \| str) -> None` | **Placeholder** — always returns `None`. Callers should use `DataLoader._load_from_cache`, which validates staleness. |
+| `load_cache` | `(file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> pd.DataFrame \| None` | Load a cached DataFrame if the entry is still valid. Validates the stored `mtime_ns` + `size` (with a legacy `mtime` fallback) against the current source `stat()`; stale entries are deleted and `None` returned. Corrupted cache is a **soft failure** — the bad file is deleted, a `WARNING` is logged, and `None` is returned so the caller reloads from source. |
 | `clear_cache` | `(file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> None` | Delete every `*.pkl` file in `cache_dir`. The `file_path` arg is accepted for API symmetry but unused. |
 
 ### `multigas.utils.validation`
