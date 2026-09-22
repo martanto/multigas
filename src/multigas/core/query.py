@@ -6,12 +6,14 @@ tracks the currently selected columns, and exposes chainable helpers for
 column selection and null-checking.
 """
 
-from typing import Self
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
 
 from multigas.logging import logger
+from multigas.core.constant import COMPARATOR
+from multigas.core.exceptions import ColumnError
 from multigas.utils.dataframe import get_dates, to_dateime_index
 from multigas.utils.validation import check_columns_exist
 
@@ -410,3 +412,206 @@ class Query:
             )
 
         return self
+
+    def count(self) -> int:
+        """Count length of dataframe
+
+        Returns:
+            int: Length of dataframe
+        """
+        return int(self.df.shape[0])
+
+    def where(self, column_name: str, comparator: str, value: Any) -> Self:
+        """Filter :attr:`df` in place by comparing a column against a value.
+
+        Mutates :attr:`df` so subsequent operations see only the matching rows;
+        the pristine :attr:`df_original` is untouched and can be restored via
+        :meth:`refresh`. When ``column_name`` equals :attr:`index_col`, the
+        comparison runs against the DatetimeIndex instead of a column.
+
+        Args:
+            column_name (str): Name of the column (or the index) to compare.
+            comparator (str): Comparison operator. Must be one of
+                :data:`multigas.core.constant.COMPARATOR` — English, symbolic,
+                and Indonesian aliases are all accepted.
+            value (Any): Right-hand side of the comparison.
+
+        Returns:
+            Self: The same instance, to allow method chaining.
+
+        Raises:
+            ValueError: When ``comparator`` is not in ``COMPARATOR``.
+            ColumnError: When ``column_name`` is neither a known column nor
+                the index name.
+
+        Example:
+            >>> q.where("CO2", ">", 1.0).count()
+            42
+        """
+        if comparator not in COMPARATOR:
+            raise ValueError(
+                f"Invalid comparator: {comparator}. Use one of: {COMPARATOR}"
+            )
+
+        if column_name == self.df.index.name:
+            df_column = self.df.index
+        else:
+            check_columns_exist(column_name, self.columns)
+            df_column = self.df[column_name]
+
+        if comparator in ["==", "like", "equal", "eq", "sama dengan"]:
+            mask = df_column == value
+        elif comparator in ["!=", "ne", "not equal", "tidak sama dengan"]:
+            mask = df_column != value
+        elif comparator in [
+            ">",
+            "gt",
+            "greater than",
+            "lebih besar",
+            "lebih besar dari",
+        ]:
+            mask = df_column > value
+        elif comparator in ["<", "lt", "less than", "kurang", "kurang dari"]:
+            mask = df_column < value
+        elif comparator in [
+            ">=",
+            "gte",
+            "greater than equal",
+            "lebih besar sama dengan",
+        ]:
+            mask = df_column >= value
+        else:
+            mask = df_column <= value
+
+        self.df = self.df[mask]
+        return self
+
+    def where_date(self, date_str: str) -> Self:
+        """Filter :attr:`df` in place to rows whose index falls within ``date_str``.
+
+        Uses pandas partial-string slicing on the DatetimeIndex. A bare
+        ``self.df.loc[date_str]`` collapses to a :class:`pandas.Series` when
+        only one row matches (or when the index precision matches ``date_str``
+        exactly), which would break every downstream :class:`Query` method
+        that assumes :attr:`df` is a :class:`pandas.DataFrame`. Using the
+        slice form ``self.df.loc[date_str:date_str]`` guarantees a
+        :class:`pandas.DataFrame` regardless of how many rows match. Mutation
+        is reversible via :meth:`refresh`.
+
+        Args:
+            date_str (str): Partial-string date accepted by pandas'
+                DatetimeIndex slicing — e.g. ``"2025"``, ``"2025-01"``, or
+                ``"2025-01-15"``. The bound is expanded to cover that whole
+                year, month, or day.
+
+        Returns:
+            Self: The same instance, to allow method chaining.
+
+        Example:
+            >>> q.where_date("2025-01-15").count()
+            1440
+        """
+        self.df = self.df.loc[date_str:date_str]
+        return self
+
+    def where_date_between(self, start_date: str, end_date: str) -> Self:
+        """Filter :attr:`df` in place to rows whose index is between two dates.
+
+        Uses pandas partial-string slicing on the DatetimeIndex, so both
+        bounds are inclusive and each accepts any precision pandas supports
+        (year, month, day). As with :meth:`where_date`, the slice form
+        guarantees :attr:`df` stays a :class:`pandas.DataFrame`. Mutation is
+        reversible via :meth:`refresh`.
+
+        Args:
+            start_date (str): Inclusive lower bound as a partial-string date
+                — e.g. ``"2025"``, ``"2025-01"``, or ``"2025-01-15"``.
+            end_date (str): Inclusive upper bound in the same partial-string
+                format. The bound is expanded to cover the whole year, month,
+                or day named.
+
+        Returns:
+            Self: The same instance, to allow method chaining.
+
+        Example:
+            >>> q.where_date_between("2025-01-01", "2025-01-31").count()
+            44640
+        """
+        self.df = self.df.loc[start_date:end_date]
+        return self
+
+    def where_values_between(
+        self,
+        column_name: str,
+        start_value: int | float,
+        end_value: int | float,
+    ) -> Self:
+        """Filter :attr:`df` in place to rows where a column's value is in ``[start, end]``.
+
+        Both bounds are inclusive. The named column must have a numeric
+        dtype; non-numeric columns raise :class:`ColumnError` — use
+        :meth:`where` for string or categorical comparisons. Mutation is
+        reversible via :meth:`refresh`.
+
+        Args:
+            column_name (str): Name of the numeric column to filter on.
+            start_value (int | float): Inclusive lower bound.
+            end_value (int | float): Inclusive upper bound.
+
+        Returns:
+            Self: The same instance, to allow method chaining.
+
+        Raises:
+            ColumnError: When ``column_name`` is not a known column, or is
+                not of a numeric dtype.
+
+        Example:
+            >>> q.where_values_between("CO2", 0.5, 1.5).count()
+            128
+        """
+        check_columns_exist(column_name, self.columns)
+        col = self.df[column_name]
+        if not pd.api.types.is_numeric_dtype(col):
+            raise ColumnError(
+                f"Column '{column_name}' is not numeric (dtype={col.dtype}); "
+                f"where_values_between requires a numeric column."
+                f"Available numeric columns `{self.numeric_columns}`.`"
+            )
+
+        mask = col.between(start_value, end_value, inclusive="both")
+        self.df = self.df[mask]
+        return self
+
+    def get(self) -> pd.DataFrame:
+        """Narrow :attr:`df` to :attr:`selected_columns` and return it.
+
+        When a selection is active, :attr:`df` is replaced with the
+        column-projected frame and :attr:`numeric_columns` is recomputed to
+        match. This is a *mutating* getter — the pruned columns leave
+        :attr:`df` for good and can only be brought back via :meth:`refresh`,
+        which restores from :attr:`df_original`. When no selection is active,
+        :attr:`df` is returned unchanged.
+
+        Returns:
+            pd.DataFrame: The current working DataFrame, narrowed to
+                :attr:`selected_columns` when a selection is active.
+
+        Example:
+            >>> q.select_columns(["CO2", "SO2"]).get().columns.tolist()
+            ['CO2', 'SO2']
+        """
+        if not self.selected_columns:
+            return self.df
+
+        self.df = self.df[self.selected_columns]
+        self.numeric_columns: list[str] = (
+            self.df.select_dtypes(include=np.number).keys().tolist()
+        )
+
+        if self.verbose:
+            logger.info(
+                f"Narrowed dataframe to {len(self.selected_columns)} "
+                f"selected column(s): {self.selected_columns}"
+            )
+
+        return self.df
