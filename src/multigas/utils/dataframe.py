@@ -7,10 +7,19 @@ loader:
   :class:`pandas.DatetimeIndex`.
 - :func:`get_dates` returns the min/max index dates alongside their string
   representations.
+- :func:`convert_to_wind_direction` maps a single compass bearing to its sector
+  label using one of the ``WIND_DIRECTIONS_*`` tables in
+  :mod:`multigas.core.constant`.
+- :func:`convert_to_wind_quadrant` maps a single compass bearing to its
+  quadrant label using one of the ``WIND_QUADRANTS_*`` tables in
+  :mod:`multigas.core.constant`.
 """
+
+from typing import Any
 
 import pandas as pd
 
+from multigas.core.constant import WIND_QUADRANTS_8
 from multigas.core.exceptions import ValidationError
 from multigas.utils.validation import validate_dataframe_column
 
@@ -85,3 +94,125 @@ def get_dates(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]:
     end_date_str: str = end_date.strftime("%Y-%m-%d")
 
     return start_date, end_date, start_date_str, end_date_str
+
+
+def convert_to_wind_direction(
+    direction_degree: float,
+    wind_directions: list[dict[str, Any]],
+    as_code: bool = False,
+) -> str | None:
+    """Map a single compass bearing to its sector label.
+
+    Bearings are normalised modulo 360 before lookup, so ``360.0``,
+    ``720.0``, and negative values wrap to their correct sector.
+    ``NaN`` inputs return ``None`` (they do not raise), which lets the
+    caller preserve row alignment when mapping over a Series that may
+    contain gaps.
+
+    Args:
+        direction_degree (float): The bearing in degrees. Values outside
+            ``[0, 360)`` are normalised via modulo 360; ``NaN`` returns
+            ``None``.
+        wind_directions (list[dict[str, Any]]): Sector table to look
+            ``direction_degree`` up in — one of
+            :data:`multigas.core.constant.WIND_DIRECTIONS_4`,
+            :data:`WIND_DIRECTIONS_8`, or :data:`WIND_DIRECTIONS_16`.
+            Each entry must expose ``min_degree``, ``max_degree``,
+            ``direction``, and ``code`` keys.
+        as_code (bool): If ``True``, return the short compass code
+            (``"N"``, ``"NE"``, …); otherwise the full name
+            (``"North"``, ``"Northeast"``, …). Defaults to ``False``.
+
+    Returns:
+        str | None: The matching sector label, or ``None`` when the
+            input is ``NaN``.
+
+    Raises:
+        ValidationError: If a finite bearing (after normalisation)
+            falls outside every bin in ``wind_directions`` — indicates
+            a bin-definition bug in the caller-supplied table.
+
+    Example:
+        >>> from multigas.core.constant import WIND_DIRECTIONS_8
+        >>> convert_to_wind_direction(90, WIND_DIRECTIONS_8, as_code=True)
+        'E'
+        >>> convert_to_wind_direction(360.0, WIND_DIRECTIONS_8) == "North"
+        True
+    """
+    if pd.isna(direction_degree):
+        return None
+
+    normalised = direction_degree % 360
+    label_key = "code" if as_code else "direction"
+    for wind_direction in wind_directions:
+        if wind_direction["min_degree"] <= normalised < wind_direction["max_degree"]:
+            return wind_direction[label_key]
+
+    raise ValidationError(
+        f"Wind direction {direction_degree} degrees could not be mapped "
+        f"to any of the provided wind-direction bins."
+    )
+
+
+def convert_to_wind_quadrant(
+    direction_degree: float,
+    wind_quadrants: list[dict[str, Any]] | None = None,
+    as_code: bool = False,
+) -> str | None:
+    """Map a single compass bearing to its quadrant label.
+
+    Bearings are normalised modulo 360 before lookup, so ``360.0``,
+    ``720.0``, and negative values wrap to their correct quadrant.
+    ``NaN`` inputs return ``None`` (they do not raise), which lets the
+    caller preserve row alignment when mapping over a Series that may
+    contain gaps.
+
+    Args:
+        direction_degree (float): The bearing in degrees. Values outside
+            ``[0, 360)`` are normalised via modulo 360; ``NaN`` returns
+            ``None``.
+        wind_quadrants (list[dict[str, Any]] | None): Quadrant table to
+            look ``direction_degree`` up in — one of
+            :data:`multigas.core.constant.WIND_QUADRANTS_4` or
+            :data:`WIND_QUADRANTS_8`. Each entry must expose
+            ``min_degree``, ``max_degree``, ``direction``, and ``code``
+            keys. Defaults to
+            :data:`multigas.core.constant.WIND_QUADRANTS_8` when
+            ``None``.
+        as_code (bool): If ``True``, return the short quadrant code
+            (``"I"``, ``"II"``, …); otherwise the full name
+            (``"Quadrant I"``, ``"Quadrant II"``, …). Defaults to
+            ``False``.
+
+    Returns:
+        str | None: The matching quadrant label, or ``None`` when the
+            input is ``NaN``.
+
+    Raises:
+        ValidationError: If a finite bearing (after normalisation)
+            falls outside every bin in ``wind_quadrants`` — indicates
+            a bin-definition bug in the caller-supplied table.
+
+    Example:
+        >>> from multigas.core.constant import WIND_QUADRANTS_4
+        >>> convert_to_wind_quadrant(45, WIND_QUADRANTS_4, as_code=True)
+        'I'
+        >>> convert_to_wind_quadrant(200) == "Quadrant V"
+        True
+    """
+    if pd.isna(direction_degree):
+        return None
+
+    if wind_quadrants is None:
+        wind_quadrants = WIND_QUADRANTS_8
+
+    normalised = direction_degree % 360
+    label_key = "code" if as_code else "direction"
+    for wind_quadrant in wind_quadrants:
+        if wind_quadrant["min_degree"] <= normalised < wind_quadrant["max_degree"]:
+            return wind_quadrant[label_key]
+
+    raise ValidationError(
+        f"Wind direction {direction_degree} degrees could not be mapped "
+        f"to any of the provided wind-quadrant bins."
+    )
