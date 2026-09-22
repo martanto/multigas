@@ -39,6 +39,22 @@ uv sync
 `uv sync` reads `pyproject.toml` + `uv.lock`, creates a virtual
 environment under `.venv/`, and installs everything the project needs.
 
+Activate the venv before running Python directly (skip if you use
+`uv run`, which resolves the env automatically):
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Windows (cmd)
+.venv\Scripts\activate.bat
+```
+
+Deactivate with `deactivate` when done.
+
 Verify the install:
 
 ```bash
