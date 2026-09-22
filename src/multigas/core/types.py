@@ -6,7 +6,7 @@ across the package:
 - Type aliases: :data:`DateLike`, :data:`ColumnName`, :data:`Comparator`.
 - Enums: :class:`DatasetType`, :class:`LogLevel`, :class:`SensorStatus`,
   :class:`FileFormat`.
-- TypedDicts: :class:`DatasetMetadataDict`.
+- TypedDicts: :class:`DatasetMetadataDict`, :class:`ExtractedStats`.
 
 The :class:`~multigas.data.multigas_data.MultiGasData` container that pairs
 a loaded DataFrame with its provenance lives alongside the loader in
@@ -94,6 +94,40 @@ class DatasetType(StrEnum):
             ValueError: 'bad' is not a valid DatasetType. ...
         """
         _raise_missing_value(cls, value)
+
+    @property
+    def total_data(self) -> int:
+        """Expected number of records per day for this dataset type.
+
+        Returns:
+            int: Count of records a complete 24-hour acquisition should
+            contain at this sampling rate.
+
+        Raises:
+            ValueError: If the member has no defined daily count (currently
+                :attr:`SPAN` and :attr:`WX`, which are categorical streams
+                without a fixed per-day cadence).
+
+        Example:
+            >>> DatasetType.ONE_SECOND.total_data
+            86400
+            >>> DatasetType.SIX_HOURS.total_data
+            4
+        """
+        _totals: dict[str, int] = {
+            "1s": 86400,
+            "2s": 5760,
+            "1min": 1440,
+            "6h": 4,
+            "zero": 4,
+        }
+        if self.value not in _totals:
+            raise ValueError(
+                f"{self!r} has no defined total_data; only "
+                f"{', '.join(f'`{k}`' for k in _totals)} are supported."
+            )
+
+        return _totals[self.value]
 
 
 class DatasetMetadataDict(TypedDict, total=False):
@@ -230,3 +264,37 @@ class FileFormat(StrEnum):
     EXCEL = "excel"
     PARQUET = "parquet"
     JSON = "json"
+
+
+class ExtractedStats(TypedDict):
+    """Per-day summary emitted by :meth:`MultiGasData.extract_daily`.
+
+    One entry per calendar day in the source range. The ``date`` field
+    is always populated; ``total_data`` and ``completeness`` are ``0``
+    / ``0.0`` when the day has no rows in the source frame. The
+    ``completeness`` value is a percentage in ``[0, 100]`` — it comes
+    from :func:`multigas.utils.dataframe.calculate_completeness` with
+    ``as_percentage=True`` (which also caps the value at ``100.0``
+    and logs a ``WARNING`` when the raw ratio exceeds ``1.0``).
+
+    Attributes:
+        date: Calendar day, formatted as ``"YYYY-MM-DD"``.
+        total_data: Number of rows written to the day's CSV; ``0`` for
+            missing days.
+        completeness: Percentage in ``[0, 100]`` from
+            :func:`calculate_completeness` with ``as_percentage=True``;
+            ``0.0`` for missing days.
+
+    Example:
+        >>> stats: ExtractedStats = {
+        ...     "date": "2025-01-15",
+        ...     "total_data": 1440,
+        ...     "completeness": 100.0,
+        ... }
+        >>> stats["completeness"]
+        100.0
+    """
+
+    date: str
+    total_data: int
+    completeness: float
