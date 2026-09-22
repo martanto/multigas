@@ -265,6 +265,14 @@ summary.head()
 
 # Or pick a custom root and get the raw list back
 stats = ds.extract_daily("exports/", return_as_list=True)
+
+# Parallelise per-day extraction (helpful for large multi-year 1s / 2s runs)
+summary = ds.extract_daily("exports/", n_jobs=4)
+
+# Incremental re-runs — keep every day whose CSV already exists on disk,
+# re-write only the new / missing ones. Good for a nightly extract job
+# that reprocesses the same range without rewriting historical days.
+summary = ds.extract_daily("exports/", overwrite=False)
 ```
 
 `completeness` is computed by [`calculate_completeness`](API-Reference.md#multigasutilsdataframe)
@@ -272,6 +280,18 @@ against `DatasetType.total_data`; over-sampled days are capped at
 `100.0` and log a `WARNING`. Missing days (no rows for that date) get
 `total_data=0` / `completeness=0.0` and are enumerated in a single
 `WARNING` line at the end of the run.
+
+`n_jobs > 1` dispatches per-day extraction to `joblib.Parallel`
+with the `loky` backend, capped at `max(1, os.cpu_count() - 2)`.
+Results stay date-ordered; per-day `verbose` logs are suppressed
+in workers to avoid interleaved multi-process output.
+
+`overwrite=False` skips the write for any day whose CSV already
+exists under `<output_dir>/daily/<dataset_type>/` and instead
+reconstructs the row from the file's line count via
+[`count_csv_rows`](API-Reference.md#multigasutilsdataframe), so
+the returned per-day shape stays one row per calendar day. The
+number of skipped days is logged at `INFO`.
 
 ---
 

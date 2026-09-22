@@ -205,9 +205,9 @@ src/multigas/
 │   └── multigas_data.py # MultiGasData — DataFrame + provenance wrapper (extends Query)
 └── utils/
     ├── path.py          # ensure_dir helper
-    ├── cache.py         # get_cache_key / get_cache_path / save_cache / clear_cache
+    ├── cache.py         # get_cache_key / get_cache_path / save_cache / load_cache / clear_cache
     ├── validation.py    # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-    └── dataframe.py     # to_datetime_index, get_dates, convert_to_wind_direction, convert_to_wind_quadrant
+    └── dataframe.py     # to_datetime_index, get_dates, convert_to_wind_direction, convert_to_wind_quadrant, calculate_completeness, count_csv_rows
 ```
 
 ### Core types (`multigas.core.types`)
