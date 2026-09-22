@@ -312,6 +312,8 @@ The parent directory is created on demand. Excel writing uses the
 MultiGasData.extract_daily(
     output_dir: Path | str | None = None,
     return_as_list: bool = False,
+    n_jobs: int = 1,
+    overwrite: bool = True,
 ) -> list[ExtractedStats] | pd.DataFrame
 ```
 
@@ -324,10 +326,33 @@ and collecting per-day stats via
 Days without data are recorded as `total_data=0` / `completeness=0.0`, and
 the full list of missing days is logged as a `WARNING` at the end.
 
+When `n_jobs > 1`, per-day extraction is dispatched to
+`joblib.Parallel` with the `loky` backend. The effective worker
+count is capped at `max(1, os.cpu_count() - 2)` to leave headroom
+for the main process and the OS. Job order is preserved, so the
+returned per-day stats stay date-ordered regardless of worker
+completion order. Per-day `verbose` info logs are suppressed in
+workers to keep multi-process log output tidy — the aggregated
+missing-days `WARNING` still fires once from the main process.
+
+When `overwrite=False`, days whose CSV already exists under
+`<output_dir>/daily/<dataset_type>/` are left alone — the write
+is skipped and the row's `total_data` is read back from the file
+via [`count_csv_rows`](#multigasutilsdataframe) (line count minus
+header) so the returned per-day shape (one row per calendar day)
+stays intact. The check is per-file (each day independent); a
+mix of "already-there" and "brand-new" days in the same range is
+fine. Stats reported for kept-on-disk days reflect the file on
+disk, not the current in-memory `df` — relevant if the caller
+has narrowed `df` via, e.g., `where_date_between`. When at least
+one day is skipped, an `INFO` line names the skipped count.
+
 | Arg | Type | Default | Description |
 |---|---|---|---|
 | `output_dir` | `Path \| str \| None` | `None` | Destination root. When `None`, files are written under `<cwd>/output/`. |
 | `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage). |
+| `n_jobs` | `int` | `1` | Number of parallel workers. `1` runs sequentially. Values `> 1` are capped at `max(1, os.cpu_count() - 2)` and dispatched to `joblib.Parallel` with the `loky` backend. |
+| `overwrite` | `bool` | `True` | When `True`, every per-day CSV is (re)written, replacing any existing file. When `False`, days whose CSV already exists are left alone and their stats are read back from the file via `count_csv_rows`. |
 
 **Returns:** `list[ExtractedStats] | pd.DataFrame` — per-day stats, one
 entry per calendar day in the source range. `completeness` is a
@@ -822,6 +847,7 @@ calls are no-ops.
 | `convert_to_wind_direction` | `(direction_degree: float, wind_directions: list[dict[str, Any]], as_code: bool = False) -> str \| None` | Map a single compass bearing to its sector label. `NaN` → `None`; values outside `[0, 360)` are normalised mod 360. Raises `ValidationError` if a finite bearing falls outside every bin. |
 | `convert_to_wind_quadrant` | `(direction_degree: float, wind_quadrants: list[dict[str, Any]] \| None = None, as_code: bool = False) -> str \| None` | Map a single compass bearing to its quadrant label. `wind_quadrants` defaults to `WIND_QUADRANTS_8`. Same NaN and normalisation rules as `convert_to_wind_direction`. |
 | `calculate_completeness` | `(total_data: int, dataset_type: DatasetType, as_percentage: bool = False) -> float` | Divide `total_data` by [`DatasetType.total_data`](#datasettype) to yield a fraction in `[0, 1]`, or a percentage in `[0, 100]` when `as_percentage=True`. When the raw ratio exceeds `1.0`, a `WARNING` is logged (naming `total_data`, the expected count, and the `DatasetType`) and the returned value is capped at `1.0` / `100.0`. Raises `ValueError` when `dataset_type` is `SPAN` or `WX` (no fixed daily count). |
+| `count_csv_rows` | `(path: Path \| str) -> int` | Return the number of data rows in a CSV file (line count minus the header row). Fast binary read; returns `0` for a zero-byte or header-only file. Assumes no embedded newlines in quoted fields (Campbell datalogger output satisfies this) — fall back to `len(pd.read_csv(path))` for arbitrary CSVs that may quote multi-line strings. |
 
 ---
 
