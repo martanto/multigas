@@ -184,7 +184,11 @@ class DataLoader:
 
             # Normalize if requested
             if normalize:
-                df = self._normalize(df, drop_empty_columns=drop_empty_columns)
+                df = self._normalize(
+                    df,
+                    drop_empty_columns=drop_empty_columns,
+                    source_path=file_path,
+                )
                 if use_cache:
                     save_cache(df, file_path, self.cache_dir, verbose=self.verbose)
 
@@ -252,10 +256,15 @@ class DataLoader:
 
         try:
             if is_toa5:
+                # NOTE: "0" is deliberately NOT in na_values. Zero is a
+                # legitimate measurement for a volcanic-gas sensor (baseline,
+                # zero-calibration, no emission) and must not be silently
+                # coerced to NaN. Keep this list aligned with the plain-CSV
+                # branch below.
                 df = pd.read_csv(
                     file_path,
                     skiprows=[0, 2, 3],  # Skip header, units, sampling rows
-                    na_values=["NAN", "NaN", "", "0"],
+                    na_values=["NAN", "NaN", ""],
                     low_memory=False,
                 )
             else:
@@ -286,17 +295,24 @@ class DataLoader:
         self,
         df: pd.DataFrame,
         drop_empty_columns: bool = False,
+        source_path: Path | None = None,
     ) -> pd.DataFrame:
         """Replace NAN sentinel strings with ``np.nan`` and coerce numeric columns.
 
         Replaces the string values ``"NAN"``, ``"NaN"``, and ``""`` with
         ``np.nan``, then attempts ``pd.to_numeric`` conversion on every column
-        whose dtype is ``object``.
+        whose dtype is ``object``. When ``source_path`` is given and the
+        normalised CSV under :attr:`normalize_dir` already exists with an mtime
+        at least as new as the source, the write is skipped to avoid redundant
+        I/O on large datalogger files.
 
         Args:
             df: DataFrame to normalize.
             drop_empty_columns: If ``True``, drop columns that are entirely NaN
                 after normalization and log how many were removed.
+            source_path: Path to the original source file. When provided, used
+                to decide whether the normalised copy on disk is already
+                current; when ``None`` the CSV is always (re)written.
 
         Returns:
             Normalized DataFrame with numeric dtypes where possible.
@@ -344,10 +360,23 @@ class DataLoader:
 
         ensure_dir(self.normalize_dir)
         normalized_path = self.normalize_dir / f"{self.basename}.csv"
-        df.to_csv(normalized_path)
 
-        if self.verbose:
-            logger.info(f"Saved normalized file to {normalized_path}")
+        should_write = True
+        if source_path is not None and normalized_path.exists():
+            target_mtime_ns = normalized_path.stat().st_mtime_ns
+            source_mtime_ns = source_path.stat().st_mtime_ns
+            if target_mtime_ns >= source_mtime_ns:
+                should_write = False
+                if self.verbose:
+                    logger.info(
+                        f"Normalized file already current, skipping write: "
+                        f"{normalized_path}"
+                    )
+
+        if should_write:
+            df.to_csv(normalized_path)
+            if self.verbose:
+                logger.info(f"Saved normalized file to {normalized_path}")
 
         return df
 

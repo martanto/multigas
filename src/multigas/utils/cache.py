@@ -100,13 +100,17 @@ def save_cache(
     cache_path = get_cache_path(cache_dir, file_path)
 
     try:
+        # Snapshot the source file's stat once so mtime / mtime_ns / size
+        # cannot drift mid-write (e.g. if the datalogger appends new rows
+        # between the three separate stat() calls the old version used).
+        source_stat = file_path.stat()
         cached_data = {
             "dataframe": df,
             "metadata": {
                 "file_path": str(file_path.absolute()),
-                "mtime": file_path.stat().st_mtime,
-                "mtime_ns": file_path.stat().st_mtime_ns,
-                "size": file_path.stat().st_size,
+                "mtime": source_stat.st_mtime,
+                "mtime_ns": source_stat.st_mtime_ns,
+                "size": source_stat.st_size,
             },
         }
 
