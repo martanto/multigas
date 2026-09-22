@@ -10,6 +10,7 @@ from multigas.data.loader import DataLoader
 def read_file(
     file_path: Path | str,
     dataset_type: DatasetType | str,
+    index_col: str = "TIMESTAMP",
     drop_empty_columns: bool = False,
     normalize: bool = True,
     use_cache: bool = True,
@@ -27,6 +28,12 @@ def read_file(
         file_path: Path to the source CSV or dat file.
         dataset_type: Dataset type identifier — a :class:`DatasetType` member
             or its string value (e.g. ``"1min"``).
+        index_col (str): Exact name of the column to promote to the
+            DataFrame index. The column's values are coerced with
+            :func:`pandas.to_datetime` (``errors="coerce"``) before
+            being set as the index. Matching is case-sensitive; the
+            column must exist in the source file. Defaults to
+            ``"TIMESTAMP"``.
         drop_empty_columns: Drop columns that are entirely NaN after
             normalisation. Defaults to ``False``.
         normalize: Replace NAN sentinel strings with ``np.nan`` and coerce
@@ -63,6 +70,7 @@ def read_file(
     ).load(
         file_path=file_path,
         dataset_type=dataset_type,
+        index_col=index_col,
         drop_empty_columns=drop_empty_columns,
         normalize=normalize,
         use_cache=use_cache,
