@@ -90,6 +90,7 @@ def check_sampling_consistency(
         logger.info(f"Total rows: {len(df)}")
         logger.info(f"Inconsistent rows found: {len(inconsistent_data)}")
         logger.info(f"Consistent rows: {len(consistent_data)}")
+        logger.info(f"Sampling rate: {sampling_rate}s")
         if len(inconsistent_data) > 0:
             logger.warning("\nInconsistent time differences:")
             logger.warning(time_diffs[inconsistent_mask].describe())
@@ -97,9 +98,7 @@ def check_sampling_consistency(
     return is_consistent, consistent_data, inconsistent_data, sampling_rate
 
 
-def check_columns_exist(
-    column_names: str | list[str], available: list[str]
-) -> None:
+def check_columns_exist(column_names: str | list[str], available: list[str]) -> None:
     """Ensure every given column name exists in a list of available names.
 
     Accepts a single name or a list. On failure raises :class:`ColumnError`
@@ -127,9 +126,7 @@ def check_columns_exist(
 
     missing = [c for c in column_names if c not in available]
     if missing:
-        raise ColumnError(
-            f"Column(s) not found: {missing}. Available: {available}"
-        )
+        raise ColumnError(f"Column(s) not found: {missing}. Available: {available}")
 
 
 def validate_dataframe_column(df: pd.DataFrame, column: str) -> None:
