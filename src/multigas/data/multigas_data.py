@@ -17,8 +17,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from multigas.logging import logger
 from multigas.core.query import Query
-from multigas.core.types import DatasetType
+from multigas.core.types import DatasetType, ExtractedStats
 from multigas.core.constant import (
     WIND_QUADRANTS_4,
     WIND_QUADRANTS_8,
@@ -27,6 +28,7 @@ from multigas.core.constant import (
     WIND_DIRECTIONS_16,
 )
 from multigas.utils.dataframe import (
+    calculate_completeness,
     convert_to_wind_quadrant,
     convert_to_wind_direction,
 )
@@ -203,9 +205,196 @@ class MultiGasData(Query):
             _wind_quadrants = WIND_QUADRANTS_4
 
         self.df["wind_quadrant"] = self.df[wind_direction_column_name].map(
-            lambda deg: convert_to_wind_quadrant(
-                deg, _wind_quadrants, as_code=as_code
-            )
+            lambda deg: convert_to_wind_quadrant(deg, _wind_quadrants, as_code=as_code)
         )
 
         return self
+
+    def extract_daily(
+        self,
+        output_dir: Path | str | None = None,
+        return_as_list: bool = False,
+    ) -> list[ExtractedStats] | pd.DataFrame:
+        """Split the working DataFrame by calendar day and write one CSV per day.
+
+        Iterates every day between the first and last timestamp of
+        :attr:`df` (inclusive), writing the rows for each day to
+        ``<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`` and
+        collecting per-day stats: row count and completeness as a
+        percentage in ``[0, 100]`` (computed by
+        :func:`multigas.utils.dataframe.calculate_completeness` with
+        ``as_percentage=True``, relative to the sampling interval
+        implied by :attr:`dataset_type`). Days without data are
+        recorded as ``total_data=0`` / ``completeness=0.0`` and the
+        full list of missing days is logged at the end.
+
+        Args:
+            output_dir (Path | str | None): Destination root. When
+                ``None``, files are written under ``<cwd>/output/``.
+                Defaults to ``None``.
+            return_as_list (bool): If ``True``, return the raw
+                ``list[ExtractedStats]``; otherwise return a
+                :class:`pandas.DataFrame` with columns ``date``,
+                ``total_data``, ``completeness`` (percentage).
+                Defaults to ``False``.
+
+        Returns:
+            list[ExtractedStats] | pd.DataFrame: Per-day stats, one
+            entry per calendar day in the source range.
+            ``completeness`` is a percentage in ``[0, 100]``.
+
+        Example:
+            >>> ds.extract_daily("exports/")
+                     date  total_data  completeness
+            0  2024-01-01        1440         100.0
+            1  2024-01-02        1200         83.33
+        """
+        if output_dir is None:
+            output_dir = Path.cwd() / "output"
+        else:
+            output_dir = Path(output_dir)
+
+        daily_dir = output_dir / "daily" / self.dataset_type.value
+        daily_dir.mkdir(parents=True, exist_ok=True)
+
+        df = self.df.copy()
+        dates = pd.date_range(
+            df.index.min().normalize(),
+            df.index.max().normalize(),
+            freq="D",
+        )
+
+        extracted_files: list[ExtractedStats] = []
+        missing_dates: list[str] = []
+        for date in dates:
+            date_str = date.strftime("%Y-%m-%d")
+            output_file = daily_dir / f"{date_str}.csv"
+
+            if self.verbose:
+                logger.info(f"{date_str} :: Extracting ...")
+
+            try:
+                df_daily = df.loc[date_str]
+            except KeyError:
+                df_daily = df.iloc[0:0]
+
+            if df_daily.empty:
+                extracted_files.append(
+                    ExtractedStats(date=date_str, total_data=0, completeness=0.0)
+                )
+                missing_dates.append(date_str)
+                continue
+
+            total_data = len(df_daily)
+            extracted_files.append(
+                ExtractedStats(
+                    date=date_str,
+                    total_data=total_data,
+                    completeness=calculate_completeness(
+                        total_data,
+                        self.dataset_type,
+                        as_percentage=True,
+                    ),
+                )
+            )
+
+            df_daily.to_csv(output_file, index=True)
+
+            if self.verbose:
+                logger.info(f"{date_str} :: Extracted to: {output_file}")
+
+        if missing_dates:
+            logger.warning(
+                f"Found {len(missing_dates)} missing dates for file "
+                f"{self.source_path}: {', '.join(missing_dates)}"
+            )
+
+        if return_as_list:
+            return extracted_files
+
+        return pd.DataFrame(extracted_files)
+
+    def to_csv(self, path: str | None = None) -> str:
+        """Write the working DataFrame to a CSV file.
+
+        When ``path`` is omitted, the file is written to
+        ``<cwd>/output/csv/<dataset_type>/<source_stem>.csv``. Any
+        explicit ``path`` is used verbatim, with a ``.csv`` suffix
+        appended when missing. The parent directory is created on
+        demand.
+
+        Args:
+            path (str | None): Destination path. When ``None``, the file
+                is written under ``<cwd>/output/csv/<dataset_type>/``
+                using the source file's stem. Defaults to ``None``.
+
+        Returns:
+            str: String representation of the written file path.
+
+        Example:
+            >>> ds.to_csv()
+            '.../output/csv/1min/site_a.csv'
+            >>> ds.to_csv("exports/custom_name.csv")
+            'exports/custom_name.csv'
+        """
+        if path is None:
+            filepath = (
+                Path.cwd()
+                / "output"
+                / "csv"
+                / self.dataset_type.value
+                / f"{self.source_path.stem}.csv"
+            )
+        else:
+            filepath = Path(path)
+
+        if filepath.suffix != ".csv":
+            filepath = filepath.with_suffix(".csv")
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        self.df.to_csv(filepath, index=True)
+        return str(filepath)
+
+    def to_excel(self, path: str | None = None) -> str:
+        """Write the working DataFrame to an Excel (``.xlsx``) file.
+
+        When ``path`` is omitted, the file is written to
+        ``<cwd>/output/excel/<dataset_type>/<source_stem>.xlsx``. Any
+        explicit ``path`` is used verbatim, with a ``.xlsx`` suffix
+        appended when missing. The parent directory is created on
+        demand. Excel writing uses the ``openpyxl`` engine (a core
+        runtime dependency).
+
+        Args:
+            path (str | None): Destination path. When ``None``, the file
+                is written under ``<cwd>/output/excel/<dataset_type>/``
+                using the source file's stem. Defaults to ``None``.
+
+        Returns:
+            str: String representation of the written file path.
+
+        Example:
+            >>> ds.to_excel()
+            '.../output/excel/1min/site_a.xlsx'
+            >>> ds.to_excel("exports/custom_name.xlsx")
+            'exports/custom_name.xlsx'
+        """
+        if path is None:
+            filepath = (
+                Path.cwd()
+                / "output"
+                / "excel"
+                / self.dataset_type.value
+                / f"{self.source_path.stem}.xlsx"
+            )
+        else:
+            filepath = Path(path)
+
+        if filepath.suffix != ".xlsx":
+            filepath = filepath.with_suffix(".xlsx")
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        self.df.to_excel(filepath, index=True, engine="openpyxl")
+        return str(filepath)
