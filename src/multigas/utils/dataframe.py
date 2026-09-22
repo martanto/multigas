@@ -5,8 +5,6 @@ loader:
 
 - :func:`to_datetime_index` promotes a named column to a sorted
   :class:`pandas.DatetimeIndex`.
-- :func:`to_dateime_index` — deprecated alias for :func:`to_datetime_index`
-  (kept for backwards compatibility; do not use in new code).
 - :func:`get_dates` returns the min/max index dates alongside their string
   representations.
 - :func:`convert_to_wind_direction` maps a single compass bearing to its sector
@@ -21,6 +19,8 @@ from typing import Any
 
 import pandas as pd
 
+from multigas.core import DatasetType
+from multigas.logging import logger
 from multigas.core.constant import WIND_QUADRANTS_8
 from multigas.core.exceptions import ValidationError
 from multigas.utils.validation import validate_dataframe_column
@@ -61,11 +61,6 @@ def to_datetime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
         ) from e
     df = df.sort_index(ascending=True)
     return df
-
-
-# Deprecated alias kept for backwards compatibility. New code should call
-# :func:`to_datetime_index` — the original name was misspelled.
-to_dateime_index = to_datetime_index
 
 
 def get_dates(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]:
@@ -223,3 +218,67 @@ def convert_to_wind_quadrant(
         f"Wind direction {direction_degree} degrees could not be mapped "
         f"to any of the provided wind-quadrant bins."
     )
+
+
+def calculate_completeness(
+    total_data: int,
+    dataset_type: DatasetType,
+    as_percentage: bool = False,
+) -> float:
+    """Compute the completeness of a dataset's sample count.
+
+    Divides ``total_data`` by :attr:`DatasetType.total_data` — the
+    expected number of samples per day at the dataset's sampling
+    interval — to yield a fraction in ``[0, 1]``, or a percentage in
+    ``[0, 100]`` when ``as_percentage`` is ``True``. When the raw
+    ratio exceeds ``1.0`` (i.e. more samples were observed than the
+    sampling interval predicts for one day), a warning naming
+    ``total_data`` and the expected count is logged and the returned
+    value is capped at ``1.0`` (or ``100.0`` when
+    ``as_percentage=True``) — clipping keeps completeness dashboards
+    and per-day summaries in their nominal range instead of surfacing
+    values like ``104%``.
+
+    Args:
+        total_data (int): Number of observed samples for the period.
+        dataset_type (DatasetType): The dataset's sampling interval.
+            Must be one of the interval members (``ONE_SECOND``,
+            ``TWO_SECONDS``, ``ONE_MINUTE``, ``SIX_HOURS``, or
+            ``ZERO``); ``SPAN`` and ``WX`` have no fixed daily count
+            and raise via :attr:`DatasetType.total_data`.
+        as_percentage (bool): If ``True``, return the completeness
+            scaled by ``100`` (e.g. ``0.83`` → ``83.0``). Defaults to
+            ``False``.
+
+    Returns:
+        float: The completeness as a fraction in ``[0, 1]``, or as a
+            percentage in ``[0, 100]`` when ``as_percentage`` is
+            ``True``. Values above the upper bound are capped and a
+            warning is logged.
+
+    Raises:
+        ValueError: If ``dataset_type`` is ``SPAN`` or ``WX`` — no
+            expected daily count is defined for those members (raised
+            by :attr:`DatasetType.total_data`).
+
+    Example:
+        >>> from multigas.core.types import DatasetType
+        >>> calculate_completeness(1200, DatasetType.ONE_MINUTE)
+        0.8333333333333334
+        >>> calculate_completeness(1200, DatasetType.ONE_MINUTE, as_percentage=True)
+        83.33333333333334
+        >>> calculate_completeness(1500, DatasetType.ONE_MINUTE, as_percentage=True)
+        100.0
+    """
+    expected = dataset_type.total_data
+    ratio = total_data / expected
+    if ratio > 1.0:
+        logger.warning(
+            f"Completeness exceeds 100%: total_data={total_data} > expected "
+            f"{expected} for {dataset_type!r}. Capping at "
+            f"{'100.0%' if as_percentage else '1.0'}."
+        )
+        ratio = 1.0
+    if as_percentage:
+        return ratio * 100
+    return ratio
