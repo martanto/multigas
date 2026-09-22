@@ -1,0 +1,293 @@
+# Getting Started
+
+A first-run guide for the `multigas` package: install it, load a file, and
+run a few queries against the result.
+
+> Back to [Home](Home.md) · See also [API Reference](API-Reference.md).
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Python | 3.11 or newer (also tested on 3.12) |
+| OS | Windows, macOS, or Linux |
+| Package manager | [`uv`](https://docs.astral.sh/uv/) — the project uses `uv` exclusively; do **not** use `pip`, `pip install`, or `python -m pip` |
+
+Runtime dependencies pulled in by `uv sync`: `pandas`, `numpy`,
+`openpyxl`, `joblib`, `loguru`, `python-dotenv`.
+
+---
+
+## Installation
+
+Clone the repository and install with `uv`:
+
+```bash
+# 1. Install the uv package manager (one time, per machine)
+pip install uv
+
+# 2. Clone
+git clone https://github.com/martanto/multigas.git
+cd multigas
+
+# 3. Install runtime + dev dependencies
+uv sync
+```
+
+`uv sync` reads `pyproject.toml` + `uv.lock`, creates a virtual
+environment under `.venv/`, and installs everything the project needs.
+
+Verify the install:
+
+```bash
+uv run python -c "import multigas; print(multigas.__version__)"
+```
+
+---
+
+## First Load
+
+The one-call convenience wrapper is `read_file`. It builds a `DataLoader`
+under the hood and returns a `MultiGasData` — a dataclass wrapping the
+loaded `pd.DataFrame`, its `DatasetType`, and the absolute source path.
+
+```python
+from multigas import read_file
+
+ds = read_file("data/site_a.dat", dataset_type="1min")
+
+ds.df.head()               # DataFrame indexed by pd.DatetimeIndex
+ds.dataset_type            # <DatasetType.ONE_MINUTE: '1min'>
+ds.source_path             # absolute Path to the source file
+ds.start_date_str          # e.g. '2025-01-01'
+ds.end_date_str            # e.g. '2025-01-31'
+ds.numeric_columns         # list of numeric column names
+```
+
+The value passed to `dataset_type` is either a `DatasetType` member or its
+string value. Sampling-interval members double as pandas frequency
+aliases, so `"1s"`, `"2s"`, `"1min"`, `"6h"` are all valid, along with the
+categorical modes `"zero"`, `"span"`, `"wx"`.
+
+### What happens on load
+
+```mermaid
+flowchart TD
+    A["Source file<br/>(TOA5 or plain CSV)"] --> B{Cache hit<br/>and normalize=True<br/>and NOT overwrite?}
+    B -->|yes| E["Return MultiGasData<br/>from cache"]
+    B -->|no| C["_load_csv()<br/>TOA5 auto-detect --> pandas.read_csv"]
+    C --> D{normalize=True?}
+    D -->|yes| F["_normalize()<br/>NaN sentinels --> numeric coercion<br/>optional drop empty cols"]
+    D -->|no| G["Return MultiGasData"]
+    F --> H["save_cache()<br/>(if use_cache=True)"]
+    H --> G
+```
+
+The cache is keyed by `md5(absolute_path + mtime)` and stored under
+`output/cache/*.pkl`. Stale (mtime/size changed) or corrupted entries
+are dropped transparently — the loader logs a `WARNING` and reloads
+from source.
+
+---
+
+## Full-Control Loading
+
+Use `DataLoader` directly when you need to customise paths, disable
+caching, or enable verbose logging.
+
+```python
+from multigas import DataLoader
+
+loader = DataLoader(
+    output_dir="output",        # <cwd>/output by default
+    cache_dir="output/cache",   # <output_dir>/cache by default
+    overwrite=False,            # True to bypass the cache lookup
+    verbose=True,               # emit info log lines during loading
+)
+
+ds = loader.load(
+    "data/site_a.dat",
+    dataset_type="1min",
+    index_col="TIMESTAMP",      # column promoted to the DatetimeIndex
+    drop_empty_columns=False,   # True to drop all-NaN columns
+    normalize=True,             # NaN-sentinel replacement + numeric coercion
+    use_cache=True,             # read/write the joblib cache
+)
+```
+
+See [API Reference → `DataLoader`](API-Reference.md#dataloader) for every
+parameter's exact type, default, and behaviour.
+
+---
+
+## Fluent Queries
+
+`MultiGasData` inherits from `Query`, so column selection, row filtering,
+and inspection chain directly on the result. `Query` mutates its working
+`df` in place; a pristine copy stays in `df_original` and can be
+restored via `refresh()`.
+
+### Select columns
+
+```python
+ds.select_numeric_columns().selected_columns
+# ['CO2', 'SO2', 'H2S', ...]
+
+ds.select_columns(["CO2", "SO2"]).df.columns.tolist()
+# ['CO2', 'SO2']  (after .get() commits the selection)
+```
+
+`get()` commits the selection — it replaces `ds.df` with the
+column-projected frame and recomputes `numeric_columns`. Dropped
+columns only come back via `refresh()`.
+
+### Filter rows
+
+```python
+# Simple comparator (any COMPARATOR alias works)
+ds.where("CO2", ">", 1.0).count()
+
+# Index-based (column_name == index name --> compares the DatetimeIndex)
+ds.where("TIMESTAMP", ">=", "2025-01-01").count()
+
+# Partial-string date slicing
+ds.where_date("2025-01-15").count()               # a single day
+ds.where_date_between("2025-01", "2025-02").count()  # two months, inclusive
+
+# Numeric range on a column
+ds.where_values_between("CO2", 0.5, 1.5).count()
+```
+
+The `where` comparator accepts symbolic, English, or Indonesian
+aliases — see the [`COMPARATOR` table](API-Reference.md#constants-multigascoreconstant).
+
+### Chain and commit
+
+```python
+(
+    ds.where("CO2", ">", 1.0)
+      .where_date_between("2025-01-01", "2025-01-31")
+      .select_columns(["CO2", "SO2"])
+      .get()          # narrows ds.df to the selected columns and returns it
+)
+```
+
+### Undo
+
+`refresh()` restores `ds.df` from `ds.df_original` and clears the
+selection — it is the only way to bring dropped rows or columns back.
+
+```python
+ds.refresh()
+ds.is_filtered()   # False
+```
+
+### Inspect
+
+```python
+ds.missing_columns    # columns with any NaN or empty string
+ds.empty_columns      # columns that are all-NaN, all-zero, or all-empty
+ds.column_has_missing("CO2")
+ds.column_is_empty("unused_channel")
+```
+
+---
+
+## Wind Analysis
+
+If your dataset carries a bearings column (in degrees), `MultiGasData`
+can attach a sector or quadrant label per row.
+
+```python
+# Add a compass-sector label (16 sectors by default)
+ds.add_wind_direction("WD_deg", as_code=True, direction_to_use=16)
+ds.df["wind_direction"].head()
+# 0    NNE
+# 1    NE
+# 2    E
+# ...
+
+# Add a quadrant label (8 quadrants by default)
+ds.add_wind_quadrant("WD_deg", as_code=False, quadrant_to_use=4)
+ds.df["wind_quadrant"].head()
+# 0    Quadrant I
+# 1    Quadrant II
+# ...
+```
+
+Bearings are normalised modulo 360, so `360.0`, `720.0`, and negative
+values all wrap correctly. `NaN` bearings produce `None` (no row is
+dropped).
+
+---
+
+## Enabling Logging
+
+The package's `loguru` logger is silent by default. Handlers are only
+registered when the `ENABLE_LOG` environment variable is `"true"`.
+
+```bash
+# One-off run
+ENABLE_LOG=true uv run python your_script.py
+
+# Or add to .env at the repo root:
+# ENABLE_LOG=true
+```
+
+Or toggle at runtime:
+
+```python
+from multigas.logging import enable_logging, set_log_level
+
+enable_logging()               # console + file sinks
+set_log_level("DEBUG")         # verbose console output
+```
+
+Full details in [`Logging`](Logging.md).
+
+---
+
+## Handling Errors
+
+Every package-specific exception derives from `MultigasException` and
+auto-logs its message on construction. Catch broadly with:
+
+```python
+from multigas.core import MultigasException, LoaderError, ColumnError
+
+try:
+    ds = read_file("data/missing.dat", dataset_type="1min")
+except LoaderError as e:
+    # file missing, TOA5/CSV parse failure, or bad index_col
+    print(f"Load failed: {e}")
+except MultigasException as e:
+    # any other package failure
+    print(f"multigas error: {e}")
+```
+
+Full hierarchy and per-class raise conditions in [`Exceptions`](Exceptions.md).
+
+---
+
+## Development Workflow
+
+```bash
+uv sync                                     # install deps
+uv run ruff check --fix src/                # lint + auto-fix
+uvx ty check src/                           # type check (ty, not mypy)
+uv run pytest tests/                        # run test suite
+uv run pytest tests/test_imports.py -v      # circular-import check
+```
+
+Run the circular-import check after any module or import change — this
+is repo rule 8.
+
+---
+
+## Where to Next
+
+- [API Reference](API-Reference.md) — every public callable with parameter tables
+- [Logging](Logging.md) — sink layout, retention, runtime toggles
+- [Exceptions](Exceptions.md) — full hierarchy, auto-log behaviour, when each is raised
