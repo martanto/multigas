@@ -11,6 +11,7 @@ loader:
 
 import pandas as pd
 
+from multigas.core.exceptions import ValidationError
 from multigas.utils.validation import validate_dataframe_column
 
 
@@ -27,6 +28,8 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
     Raises:
         ColumnError: If ``index_col`` does not exist in ``df`` (raised by
             :func:`multigas.utils.validation.validate_dataframe_column`).
+        ValidationError: If the values of ``index_col`` cannot be parsed as
+            datetimes by :func:`pandas.to_datetime`.
 
     Example:
         >>> df = pd.DataFrame({"time": ["2025-01-01"], "val": [1]})
@@ -39,7 +42,12 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
 
     validate_dataframe_column(df, index_col)
     df = df.set_index(index_col)
-    df.index = pd.to_datetime(df.index)
+    try:
+        df.index = pd.to_datetime(df.index)
+    except (ValueError, TypeError, pd.errors.ParserError) as e:
+        raise ValidationError(
+            f"Failed to convert column {index_col!r} to a DatetimeIndex: {e}"
+        ) from e
     df = df.sort_index(ascending=True)
     return df
 
