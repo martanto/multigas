@@ -13,8 +13,8 @@ import pandas as pd
 
 from multigas.logging import logger
 from multigas.core.constant import COMPARATOR
-from multigas.core.exceptions import ColumnError
-from multigas.utils.dataframe import get_dates, to_dateime_index
+from multigas.core.exceptions import ColumnError, ValidationError
+from multigas.utils.dataframe import get_dates, to_datetime_index
 from multigas.utils.validation import check_columns_exist
 
 
@@ -73,12 +73,12 @@ class Query:
             >>> isinstance(q.df.index, pd.DatetimeIndex)
             True
         """
-        index_col: str = index_col or "TIMESTAMP"
-        df = to_dateime_index(df, index_col)
-        df_original: pd.DataFrame = df.copy()
-
         if df.empty:
-            raise ValueError("Dataframe is empty.")
+            raise ValidationError("DataFrame is empty; cannot construct Query.")
+
+        index_col: str = index_col or "TIMESTAMP"
+        df = to_datetime_index(df, index_col)
+        df_original: pd.DataFrame = df.copy()
 
         self.df: pd.DataFrame = df
         self.index_col: str = index_col
@@ -102,8 +102,11 @@ class Query:
         "Missing" is defined by :meth:`column_has_missing` — ``NaN``/``pd.NA``
         for every dtype and, for string-like dtypes, the empty string ``""``.
         When a selection is active (:attr:`selected_columns` non-empty), only
-        selected columns are inspected; otherwise every column is checked.
-        Mirrors the scoping of :attr:`empty_columns`.
+        selected columns are inspected; otherwise every column in the current
+        working :attr:`df` is checked. Any selected name that no longer
+        exists in :attr:`df` (e.g. dropped by a prior :meth:`get`) will
+        surface as a :class:`ColumnError` from :meth:`column_has_missing`
+        rather than a silent skip.
 
         Returns:
             list[str]: Column names that have at least one missing value.
@@ -112,15 +115,19 @@ class Query:
             >>> q.missing_columns
             ['CO2', 'H2S']
         """
-        columns_name = self.selected_columns or self.columns
+        columns_name = self.selected_columns or self.df.columns.tolist()
         return [c for c in columns_name if self.column_has_missing(c)]
 
     @property
     def empty_columns(self) -> list[str]:
-        """Names of columns whose values sum to zero (all-zero or all-empty).
+        """Names of columns whose values are considered empty.
 
         When a selection is active (:attr:`selected_columns` non-empty), only
-        selected columns are inspected; otherwise every column is checked.
+        selected columns are inspected; otherwise every column in the current
+        working :attr:`df` is checked. Any selected name that no longer
+        exists in :attr:`df` (e.g. dropped by a prior :meth:`get`) will
+        surface as a :class:`ColumnError` from :meth:`column_is_empty`
+        rather than a silent skip.
 
         Returns:
             list[str]: Column names that are considered empty.
@@ -129,18 +136,8 @@ class Query:
             >>> q.empty_columns
             ['unused_channel']
         """
-        columns_name = self.columns
-        columns_selected: int = len(self.selected_columns)
-        empty_columns: list[str] = []
-
-        if columns_selected > 0:
-            columns_name = self.selected_columns
-
-        for column_name in columns_name:
-            if self.column_is_empty(column_name):
-                empty_columns.append(column_name)
-
-        return empty_columns
+        columns_name = self.selected_columns or self.df.columns.tolist()
+        return [c for c in columns_name if self.column_is_empty(c)]
 
     @staticmethod
     def intersection(first_list: list[str], second_list: list[str]) -> list[str]:
@@ -265,7 +262,7 @@ class Query:
             >>> q.column_has_missing("CO2")
             False
         """
-        check_columns_exist(column_name, self.columns)
+        check_columns_exist(column_name, self.df.columns.tolist())
         col = self.df[column_name]
         has_null = col.isna().to_numpy().any()
         has_empty = (
@@ -293,7 +290,7 @@ class Query:
             >>> q.column_is_empty("unused_channel")
             True
         """
-        check_columns_exist(column_name, self.columns)
+        check_columns_exist(column_name, self.df.columns.tolist())
         col = self.df[column_name]
 
         if col.isna().to_numpy().all():
@@ -338,7 +335,9 @@ class Query:
                 in :attr:`columns`.
 
         Example:
-            >>> q.select_columns(["CO2", "SO2"]).df.columns.tolist()
+            >>> q.select_columns(["CO2", "SO2"]).selected_columns
+            ['CO2', 'SO2']
+            >>> q.select_columns(["CO2", "SO2"]).get().columns.tolist()
             ['CO2', 'SO2']
         """
         if isinstance(column_names, str):
@@ -417,10 +416,14 @@ class Query:
         return self
 
     def count(self) -> int:
-        """Count length of dataframe
+        """Count the number of rows in :attr:`df`.
 
         Returns:
-            int: Length of dataframe
+            int: Number of rows in the current working DataFrame.
+
+        Example:
+            >>> q.count()
+            1440
         """
         return int(self.df.shape[0])
 
@@ -483,8 +486,22 @@ class Query:
             "lebih besar sama dengan",
         ]:
             mask = df_column >= value
-        else:
+        elif comparator in [
+            "<=",
+            "lte",
+            "less than equal",
+            "kurang dari sama dengan",
+        ]:
             mask = df_column <= value
+        else:
+            # Unreachable: the top-of-method `comparator not in COMPARATOR`
+            # guard rejects unknown values, and every alias in COMPARATOR is
+            # dispatched above. This branch fires only if COMPARATOR gains a
+            # new alias without a matching handler here.
+            raise AssertionError(
+                f"Unhandled comparator {comparator!r}; add a branch in "
+                "Query.where when extending multigas.core.constant.COMPARATOR."
+            )
 
         self.df = self.df[mask]
         return self

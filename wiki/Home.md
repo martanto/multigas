@@ -50,7 +50,7 @@ multigas/
 │       ├── path.py              # ensure_dir
 │       ├── cache.py             # get_cache_key / get_cache_path / save_cache / clear_cache
 │       ├── validation.py        # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-│       └── dataframe.py         # to_dateime_index, get_dates, convert_to_wind_*
+│       └── dataframe.py         # to_datetime_index, get_dates, convert_to_wind_*
 ├── tests/                       # Pytest suite (and where all test output belongs)
 ├── wiki/                        # This documentation
 ├── changelogs/                  # Daily task log (git-ignored, local only)

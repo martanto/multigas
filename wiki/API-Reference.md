@@ -722,7 +722,8 @@ calls are no-ops.
 
 | Function | Signature | Description |
 |---|---|---|
-| `to_dateime_index` | `(df: pd.DataFrame, index_col: str) -> pd.DataFrame` | Promote `index_col` to a sorted `pd.DatetimeIndex`. Returns the frame unchanged when the index is already a `DatetimeIndex`. Raises `ColumnError` (missing column) or `ValidationError` (unparsable values). This is the single canonical converter — do not hand-roll `df.set_index(...) / pd.to_datetime(...)` elsewhere. |
+| `to_datetime_index` | `(df: pd.DataFrame, index_col: str) -> pd.DataFrame` | Promote `index_col` to a sorted `pd.DatetimeIndex`. Returns the frame unchanged when the index is already a `DatetimeIndex`. Raises `ColumnError` (missing column) or `ValidationError` (unparsable values). This is the single canonical converter — do not hand-roll `df.set_index(...) / pd.to_datetime(...)` elsewhere. |
+| `to_dateime_index` | — | **Deprecated alias** for `to_datetime_index`, kept only for backwards compatibility. Do not use in new code. |
 | `get_dates` | `(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]` | Return `(start_date, end_date, start_date_str, end_date_str)` — strings formatted as `"YYYY-MM-DD"`. Raises `TypeError` when the index is not a `DatetimeIndex`. |
 | `convert_to_wind_direction` | `(direction_degree: float, wind_directions: list[dict[str, Any]], as_code: bool = False) -> str \| None` | Map a single compass bearing to its sector label. `NaN` → `None`; values outside `[0, 360)` are normalised mod 360. Raises `ValidationError` if a finite bearing falls outside every bin. |
 | `convert_to_wind_quadrant` | `(direction_degree: float, wind_quadrants: list[dict[str, Any]] \| None = None, as_code: bool = False) -> str \| None` | Map a single compass bearing to its quadrant label. `wind_quadrants` defaults to `WIND_QUADRANTS_8`. Same NaN and normalisation rules as `convert_to_wind_direction`. |

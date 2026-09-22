@@ -203,7 +203,7 @@ src/multigas/
     ├── path.py          # ensure_dir helper
     ├── cache.py         # get_cache_key / get_cache_path / save_cache / clear_cache
     ├── validation.py    # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-    └── dataframe.py     # to_dateime_index, get_dates, convert_to_wind_direction, convert_to_wind_quadrant
+    └── dataframe.py     # to_datetime_index, get_dates, convert_to_wind_direction, convert_to_wind_quadrant
 ```
 
 ### Core types (`multigas.core.types`)

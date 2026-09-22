@@ -3,8 +3,10 @@
 Thin wrappers over pandas used by :class:`multigas.core.query.Query` and the
 loader:
 
-- :func:`to_dateime_index` promotes a named column to a sorted
+- :func:`to_datetime_index` promotes a named column to a sorted
   :class:`pandas.DatetimeIndex`.
+- :func:`to_dateime_index` — deprecated alias for :func:`to_datetime_index`
+  (kept for backwards compatibility; do not use in new code).
 - :func:`get_dates` returns the min/max index dates alongside their string
   representations.
 - :func:`convert_to_wind_direction` maps a single compass bearing to its sector
@@ -24,7 +26,7 @@ from multigas.core.exceptions import ValidationError
 from multigas.utils.validation import validate_dataframe_column
 
 
-def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
+def to_datetime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
     """Convert a column to pd.DatetimeIndex and set it as the DataFrame index.
 
     Args:
@@ -42,7 +44,7 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
 
     Example:
         >>> df = pd.DataFrame({"time": ["2025-01-01"], "val": [1]})
-        >>> result = to_dateime_index(df, "time")
+        >>> result = to_datetime_index(df, "time")
         >>> isinstance(result.index, pd.DatetimeIndex)
         True
     """
@@ -59,6 +61,11 @@ def to_dateime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
         ) from e
     df = df.sort_index(ascending=True)
     return df
+
+
+# Deprecated alias kept for backwards compatibility. New code should call
+# :func:`to_datetime_index` — the original name was misspelled.
+to_dateime_index = to_datetime_index
 
 
 def get_dates(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]:
