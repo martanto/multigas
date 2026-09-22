@@ -7,7 +7,6 @@ from multigas.core.types import (
     Comparator,
     FileFormat,
     DatasetType,
-    MultiGasData,
     DatasetMetadataDict,
 )
 from multigas.core.exceptions import (
@@ -34,7 +33,6 @@ __all__ = [
     "FileFormat",
     "DatasetType",
     "DatasetMetadataDict",
-    "MultiGasData",
     # Exceptions
     "PlotError",
     "CacheError",

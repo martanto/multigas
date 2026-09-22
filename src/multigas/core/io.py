@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from multigas.core import MultiGasData
 from multigas.core.types import DatasetType
 from multigas.data.loader import DataLoader
+from multigas.data.multigas_data import MultiGasData
 
 
 def read_file(

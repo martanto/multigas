@@ -193,14 +193,16 @@ src/multigas/
 ├── logging.py           # Loguru logger + enable/disable/level helpers
 ├── config/              # Configuration (stub)
 ├── core/
-│   ├── __init__.py      # Re-exports MultiGasData, DatasetType, exceptions
-│   ├── types.py         # Enums, type aliases, MultiGasData dataclass
+│   ├── __init__.py      # Re-exports DatasetType, enums, type aliases, exceptions
+│   ├── types.py         # Enums and type aliases
 │   ├── query.py         # Query — fluent column/filter mixin
 │   ├── constant.py      # COMPARATOR + WIND_DIRECTIONS_* / WIND_QUADRANTS_*
 │   ├── io.py            # read_file — one-call convenience wrapper
 │   └── exceptions.py    # MultigasException hierarchy (auto-logs on raise)
 ├── data/
-│   └── loader.py        # DataLoader — file I/O, normalisation, joblib cache
+│   ├── __init__.py      # Re-exports DataLoader, MultiGasData
+│   ├── loader.py        # DataLoader — file I/O, normalisation, joblib cache
+│   └── multigas_data.py # MultiGasData — DataFrame + provenance wrapper (extends Query)
 └── utils/
     ├── path.py          # ensure_dir helper
     ├── cache.py         # get_cache_key / get_cache_path / save_cache / clear_cache
@@ -212,7 +214,7 @@ src/multigas/
 
 | Name | Kind | Description |
 |---|---|---|
-| `MultiGasData` | `dataclass(Query)` | Wraps a loaded DataFrame with `dataset_type`, `source_path`, `index_col`, and the fluent `Query` API. Adds `add_wind_direction` / `add_wind_quadrant` for compass-label columns |
+| `MultiGasData` | class (subclass of `Query`) | Wraps a loaded DataFrame with `dataset_type`, `source_path`, `index_col`, and the fluent `Query` API. Adds `add_wind_direction` / `add_wind_quadrant` for compass-label columns. Lives in `multigas.data.multigas_data` (re-exported from `multigas.data`) |
 | `DatasetType` | `StrEnum` | Sampling intervals as pandas frequency aliases: `ONE_SECOND="1s"`, `TWO_SECONDS="2s"`, `ONE_MINUTE="1min"`, `SIX_HOURS="6h"`, plus categorical modes `ZERO="zero"`, `SPAN="span"`, `WX="wx"` |
 | `SensorStatus` | `IntEnum` | Datalogger status codes (e.g. `WARMING_UP=-1`, `SAMPLE_ACQUISITION=1`, `SPAN_CO2_SO2=4`), each with a `.description` property |
 | `FileFormat` | `StrEnum` | `CSV`, `EXCEL`, `PARQUET`, `JSON` |

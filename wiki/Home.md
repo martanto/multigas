@@ -37,15 +37,16 @@ multigas/
 │   ├── logging.py               # Preconfigured loguru logger + toggles
 │   ├── config/                  # Configuration (stub)
 │   ├── core/
-│   │   ├── __init__.py          # Re-exports MultiGasData, DatasetType, exceptions
-│   │   ├── types.py             # Enums, aliases, MultiGasData dataclass
+│   │   ├── __init__.py          # Re-exports DatasetType, enums, type aliases, exceptions
+│   │   ├── types.py             # Enums and type aliases
 │   │   ├── query.py             # Query — fluent column/filter mixin
 │   │   ├── constant.py          # COMPARATOR + WIND_DIRECTIONS_* / WIND_QUADRANTS_*
 │   │   ├── io.py                # read_file — one-call convenience wrapper
 │   │   └── exceptions.py        # MultigasException hierarchy (auto-logs on raise)
 │   ├── data/
-│   │   ├── __init__.py          # Re-exports DataLoader
-│   │   └── loader.py            # DataLoader — file I/O, normalisation, joblib cache
+│   │   ├── __init__.py          # Re-exports DataLoader, MultiGasData
+│   │   ├── loader.py            # DataLoader — file I/O, normalisation, joblib cache
+│   │   └── multigas_data.py     # MultiGasData — DataFrame + provenance wrapper (extends Query)
 │   └── utils/
 │       ├── __init__.py          # Docstring-only; import helpers directly
 │       ├── path.py              # ensure_dir
@@ -76,7 +77,7 @@ flowchart TD
     D -->|no| F["_load_csv()<br/>TOA5 detect --> pandas.read_csv"]
     F --> G["_normalize()<br/>NaN sentinels --> numeric coercion"]
     G --> E
-    E --> H["MultiGasData<br/>(dataclass wrapping df + metadata)"]
+    E --> H["MultiGasData<br/>(class wrapping df + metadata)"]
     G --> H
     H --> I["Query API<br/>select_/where_/get / add_wind_*"]
     I --> J["pd.DataFrame result"]
@@ -87,10 +88,10 @@ Public entry points live at the top of the package:
 - **`multigas.read_file`** — one-call convenience wrapper.
 - **`multigas.DataLoader`** — full-control loader with cache management.
 
-Both return a **`MultiGasData`** — a dataclass that wraps the loaded
-DataFrame together with its `DatasetType`, absolute source path, and
-`Query` mixin for fluent column selection, row filtering, and wind
-analysis.
+Both return a **`MultiGasData`** — a class (from
+`multigas.data.multigas_data`) that wraps the loaded DataFrame together
+with its `DatasetType`, absolute source path, and `Query` mixin for
+fluent column selection, row filtering, and wind analysis.
 
 ---
 
@@ -151,7 +152,7 @@ uv run pytest tests/test_imports.py -v      # circular-import check
 |---|---|
 | **TOA5** | Campbell Scientific LoggerNet ASCII table format — a first-line `"TOA5"` marker followed by header, units, sampling, and data rows |
 | **DatasetType** | Enum whose string values are pandas frequency aliases (`"1s"`, `"2s"`, `"6h"`, `"1min"`) plus categorical modes (`"zero"`, `"span"`, `"wx"`) |
-| **MultiGasData** | Dataclass wrapping a loaded DataFrame + provenance metadata; extends `Query` so all fluent helpers live directly on the result |
+| **MultiGasData** | Class wrapping a loaded DataFrame + provenance metadata; lives in `multigas.data.multigas_data` and extends `Query` so all fluent helpers live directly on the result |
 | **Query** | Mixin providing fluent column selection, row filtering, and null / empty inspection. Mutates its working `df` in place; `df_original` is the pristine copy restored by `refresh()` |
 | **COMPARATOR** | List of accepted comparator aliases for `Query.where()` — symbolic (`">="`), English (`"greater than"`), and Indonesian (`"lebih besar sama dengan"`) |
 | **normalise** | Replace `"NAN"` / `"NaN"` / `""` string sentinels with `np.nan` and coerce object-dtype columns to numeric where possible |

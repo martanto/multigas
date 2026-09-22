@@ -1,9 +1,9 @@
 """Fluent query interface for pandas DataFrames with a datetime index.
 
-Defines :class:`Query`, the mixin that :class:`multigas.core.types.MultiGasData`
-inherits from. It normalises the index to a :class:`pandas.DatetimeIndex`,
-tracks the currently selected columns, and exposes chainable helpers for
-column selection and null-checking.
+Defines :class:`Query`, the mixin that
+:class:`multigas.data.multigas_data.MultiGasData` inherits from. It normalises
+the index to a :class:`pandas.DatetimeIndex`, tracks the currently selected
+columns, and exposes chainable helpers for column selection and null-checking.
 """
 
 from typing import Any, Self

@@ -6,35 +6,21 @@ across the package:
 - Type aliases: :data:`DateLike`, :data:`ColumnName`, :data:`Comparator`.
 - Enums: :class:`DatasetType`, :class:`LogLevel`, :class:`SensorStatus`,
   :class:`FileFormat`.
-- Dataclasses: :class:`MultiGasData` (a DataFrame + provenance wrapper that
-  also inherits :class:`multigas.core.query.Query` for fluent operations).
 - TypedDicts: :class:`DatasetMetadataDict`.
+
+The :class:`~multigas.data.multigas_data.MultiGasData` container that pairs
+a loaded DataFrame with its provenance lives alongside the loader in
+:mod:`multigas.data.multigas_data`.
 
 Values for :class:`DatasetType` are chosen so that they double as pandas
 frequency aliases where applicable (``"1s"``, ``"2s"``, ``"6h"``, ``"1min"``).
 """
 
 from enum import IntEnum, StrEnum, EnumMeta
-from typing import Self, Literal, TypedDict
-from pathlib import Path
+from typing import TypedDict
 from datetime import datetime
-from dataclasses import dataclass
 
 import pandas as pd
-
-from multigas.core.query import Query
-from multigas.core.constant import (
-    WIND_QUADRANTS_4,
-    WIND_QUADRANTS_8,
-    WIND_DIRECTIONS_4,
-    WIND_DIRECTIONS_8,
-    WIND_DIRECTIONS_16,
-)
-from multigas.utils.dataframe import (
-    convert_to_wind_quadrant,
-    convert_to_wind_direction,
-)
-from multigas.utils.validation import check_columns_exist
 
 
 DateLike = str | datetime | pd.Timestamp
@@ -108,173 +94,6 @@ class DatasetType(StrEnum):
             ValueError: 'bad' is not a valid DatasetType. ...
         """
         _raise_missing_value(cls, value)
-
-
-@dataclass
-class MultiGasData(Query):
-    """A loaded DataFrame together with its provenance metadata and query capabilities.
-
-    Extends Query to expose fluent column-selection and filtering methods directly
-    on the loaded dataset.
-
-    Attributes:
-        df: The loaded (and optionally normalized) DataFrame.
-        dataset_type: The type of dataset as declared by the caller.
-        source_path: Absolute path to the original source file.
-        index_col: Column name used as the datetime index.
-        verbose: Whether to emit log messages for each operation.
-
-    Example:
-        >>> result = loader.load(path, DatasetType.ONE_MINUTE)
-        >>> result.select_numeric_columns().df.head()
-        >>> result.dataset_type
-        <DatasetType.ONE_MINUTE: '1min'>
-    """
-
-    df: pd.DataFrame
-    dataset_type: DatasetType
-    source_path: Path
-    index_col: str = "TIMESTAMP"
-    verbose: bool = False
-
-    def __post_init__(self):
-        """Initialise Query with the loaded DataFrame.
-
-        Example:
-            >>> result = MultiGasData(df, DatasetType.ONE_MINUTE, path)
-            >>> result.numeric_columns  # populated by Query.__init__
-        """
-        Query.__init__(self, self.df, self.index_col, self.verbose)
-
-    def __repr__(self) -> str:
-        """Return a concise string representation of the dataset.
-
-        Returns:
-            str: A string showing dataset_type, source_path, and DataFrame shape.
-
-        Example:
-            >>> repr(result)
-            "MultiGasData(dataset_type=<DatasetType.ONE_MINUTE: '1min'>, ..., index_col='TIMESTAMP', drop_empty_columns=False, verbose=False)"
-        """
-        return (
-            f"MultiGasData("
-            f"dataset_type={self.dataset_type!r}, "
-            f"source_path={self.source_path!r}, "
-            f"shape={self.df.shape}, "
-            f"index_col={self.index_col!r}, "
-            f"verbose={self.verbose!r})"
-        )
-
-    def add_wind_direction(
-        self,
-        wind_direction_column_name: str,
-        as_code: bool = False,
-        direction_to_use: Literal[16, 8, 4] = 16,
-    ) -> Self:
-        """Append a ``wind_direction`` column derived from a bearings column.
-
-        Reads compass bearings (in degrees) from
-        ``wind_direction_column_name`` and writes the corresponding
-        compass-sector label into a new ``wind_direction`` column. The
-        circle is divided into 4, 8, or 16 sectors depending on
-        ``direction_to_use``. Bearings are normalised modulo 360 first,
-        so ``360.0`` maps to North and negative values wrap correctly;
-        ``NaN`` inputs produce ``None`` (no row is dropped).
-
-        Args:
-            wind_direction_column_name (str): Name of the source column
-                holding bearings in degrees.
-            as_code (bool): If ``True``, emit short codes (``"N"``,
-                ``"NE"``, …); otherwise the full name (``"North"``,
-                ``"Northeast"``, …). Defaults to ``False``.
-            direction_to_use (Literal[16, 8, 4]): Number of compass
-                sectors. Defaults to ``16``.
-
-        Raises:
-            ColumnError: If ``wind_direction_column_name`` is not
-                present on the underlying DataFrame.
-            ValidationError: If a finite bearing cannot be mapped to any
-                sector — indicates a bin-definition bug in
-                :mod:`multigas.core.constant`.
-
-        Returns:
-            Self: The same instance, for fluent chaining.
-
-        Example:
-            >>> result.add_wind_direction("WD_deg", direction_to_use=8)
-            >>> result.df["wind_direction"].head()
-        """
-        check_columns_exist(wind_direction_column_name, self.df.columns.to_list())
-
-        if direction_to_use == 16:
-            _wind_directions = WIND_DIRECTIONS_16
-        elif direction_to_use == 8:
-            _wind_directions = WIND_DIRECTIONS_8
-        else:
-            _wind_directions = WIND_DIRECTIONS_4
-
-        self.df["wind_direction"] = self.df[wind_direction_column_name].map(
-            lambda deg: convert_to_wind_direction(
-                deg, _wind_directions, as_code=as_code
-            )
-        )
-
-        return self
-
-    def add_wind_quadrant(
-        self,
-        wind_direction_column_name: str,
-        as_code: bool = False,
-        quadrant_to_use: Literal[8, 4] = 8,
-    ) -> Self:
-        """Append a ``wind_quadrant`` column derived from a bearings column.
-
-        Reads compass bearings (in degrees) from
-        ``wind_direction_column_name`` and writes the corresponding
-        quadrant label into a new ``wind_quadrant`` column. The circle
-        is divided into 4 or 8 quadrants depending on
-        ``quadrant_to_use``. Bearings are normalised modulo 360 first,
-        so ``360.0`` maps to the first quadrant and negative values
-        wrap correctly; ``NaN`` inputs produce ``None`` (no row is
-        dropped).
-
-        Args:
-            wind_direction_column_name (str): Name of the source column
-                holding bearings in degrees.
-            as_code (bool): If ``True``, emit short codes (``"I"``,
-                ``"II"``, …); otherwise the full name (``"Quadrant I"``,
-                ``"Quadrant II"``, …). Defaults to ``False``.
-            quadrant_to_use (Literal[8, 4]): Number of quadrants.
-                Defaults to ``8``.
-
-        Raises:
-            ColumnError: If ``wind_direction_column_name`` is not
-                present on the underlying DataFrame.
-            ValidationError: If a finite bearing cannot be mapped to any
-                quadrant — indicates a bin-definition bug in
-                :mod:`multigas.core.constant`.
-
-        Returns:
-            Self: The same instance, for fluent chaining.
-
-        Example:
-            >>> result.add_wind_quadrant("WD_deg", quadrant_to_use=4)
-            >>> result.df["wind_quadrant"].head()
-        """
-        check_columns_exist(wind_direction_column_name, self.df.columns.to_list())
-
-        if quadrant_to_use == 8:
-            _wind_quadrants = WIND_QUADRANTS_8
-        else:
-            _wind_quadrants = WIND_QUADRANTS_4
-
-        self.df["wind_quadrant"] = self.df[wind_direction_column_name].map(
-            lambda deg: convert_to_wind_quadrant(
-                deg, _wind_quadrants, as_code=as_code
-            )
-        )
-
-        return self
 
 
 class DatasetMetadataDict(TypedDict, total=False):

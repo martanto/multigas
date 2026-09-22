@@ -14,6 +14,7 @@ MULTIGAS_MODULES = [
     "multigas.core.types",
     "multigas.data",
     "multigas.data.loader",
+    "multigas.data.multigas_data",
     "multigas.logging",
 ]
 
