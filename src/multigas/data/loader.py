@@ -97,8 +97,8 @@ class DataLoader:
         self,
         file_path: Path | str,
         dataset_type: DatasetType | str,
-        drop_empty_columns: bool = False,
         index_col: str = "TIMESTAMP",
+        drop_empty_columns: bool = False,
         normalize: bool = True,
         use_cache: bool = True,
     ) -> MultiGasData:
@@ -259,7 +259,7 @@ class DataLoader:
                     low_memory=False,
                 )
             else:
-                raise ValueError("Non-TOA5 source")
+                raise ValueError(f"Non-TOA5 source. Your first line: {first_line}")
         except (pd.errors.ParserError, ValueError, KeyError):
             logger.info("File is not TOA5 file. Load as standart CSV.")
             df = pd.read_csv(
