@@ -13,9 +13,14 @@ loader:
 - :func:`convert_to_wind_quadrant` maps a single compass bearing to its
   quadrant label using one of the ``WIND_QUADRANTS_*`` tables in
   :mod:`multigas.core.constant`.
+- :func:`calculate_completeness` divides an observed sample count by the
+  expected daily count implied by a :class:`DatasetType`.
+- :func:`count_csv_rows` returns the data-row count of a CSV file (fast
+  line count minus the header row).
 """
 
 from typing import Any
+from pathlib import Path
 
 import pandas as pd
 
@@ -282,3 +287,28 @@ def calculate_completeness(
     if as_percentage:
         return ratio * 100
     return ratio
+
+
+def count_csv_rows(path: Path | str) -> int:
+    """Count data rows in a CSV file, excluding the header.
+
+    Fast line count via a binary read — sidesteps encoding detection
+    and universal-newline translation, so it stays quick even on
+    large files. Assumes no embedded newlines in quoted fields
+    (Campbell datalogger output satisfies this); fall back to
+    ``len(pd.read_csv(path))`` for arbitrary CSVs that may quote
+    multi-line strings.
+
+    Args:
+        path (Path | str): CSV file to read.
+
+    Returns:
+        int: Number of data rows. Returns ``0`` for a zero-byte or
+            header-only file.
+
+    Example:
+        >>> count_csv_rows("output/daily/1min/2024-01-01.csv")
+        1440
+    """
+    with open(path, "rb") as f:
+        return max(0, sum(1 for _ in f) - 1)
