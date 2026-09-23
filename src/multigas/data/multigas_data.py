@@ -223,6 +223,7 @@ class MultiGasData(Query):
         return_as_list: bool = False,
         n_jobs: int = 1,
         overwrite: bool = True,
+        plot: bool = True,
     ) -> list[ExtractedStats] | pd.DataFrame:
         """Split the working DataFrame by calendar day and write one CSV per day.
 
@@ -240,15 +241,19 @@ class MultiGasData(Query):
         full list of missing days is logged at the end.
 
         Alongside the per-day CSVs, the aggregated stats are also
-        persisted under ``<output_dir>/daily/<dataset_type_label>/``:
+        persisted under ``<output_dir>/daily/<dataset_type_label>/``
+        (``<source_slug>`` is the slugified source file stem):
 
-        * When ``return_as_list=False`` (the default), the stats are
-          written to ``<source_stem>.xlsx`` via
-          :meth:`pandas.DataFrame.to_excel` (``openpyxl`` engine).
+        * ``<source_slug>-completeness.csv`` is always written, with
+          columns ``date``, ``total_data``, ``completeness``.
+        * When ``plot=True`` (the default), that CSV is rendered to
+          ``<source_slug>-completeness.png`` via
+          :func:`multigas.plot.plot_completeness`. Plotting failures
+          are logged at ``WARNING`` and never abort the extraction.
         * When ``return_as_list=True``, the raw
-          ``list[ExtractedStats]`` is written to ``<source_stem>.json``
-          via :func:`json.dump` with ``indent=4`` and
-          ``ensure_ascii=False``.
+          ``list[ExtractedStats]`` is additionally written to
+          ``<source_slug>.json`` via :func:`json.dump` with
+          ``indent=4`` and ``ensure_ascii=False``.
 
         When ``n_jobs > 1``, per-day extraction runs in parallel via
         :class:`joblib.Parallel` with the ``loky`` backend. The
@@ -273,12 +278,12 @@ class MultiGasData(Query):
                 ``None``, files are written under ``<cwd>/output/``.
                 Defaults to ``None``.
             return_as_list (bool): If ``True``, return the raw
-                ``list[ExtractedStats]`` and persist it as
-                ``<source_stem>.json``; otherwise return a
+                ``list[ExtractedStats]`` and additionally persist it as
+                ``<source_slug>.json``; otherwise return a
                 :class:`pandas.DataFrame` with columns ``date``,
-                ``total_data``, ``completeness`` (percentage) and
-                persist it as ``<source_stem>.xlsx``. Defaults to
-                ``False``.
+                ``total_data``, ``completeness`` (percentage). The
+                ``-completeness.csv`` summary is written either way.
+                Defaults to ``False``.
             n_jobs (int): Number of parallel workers. ``1`` (the
                 default) runs sequentially. Values ``> 1`` are
                 capped at ``max(1, os.cpu_count() - 2)`` and
@@ -289,6 +294,9 @@ class MultiGasData(Query):
                 file. When ``False``, days whose CSV already exists
                 are left alone and their stats are read back from
                 the file via :func:`count_csv_rows`.
+            plot (bool): Render the completeness summary to
+                ``<source_slug>-completeness.png``. Defaults to
+                ``True``.
 
         Returns:
             list[ExtractedStats] | pd.DataFrame: Per-day stats, one
@@ -300,9 +308,10 @@ class MultiGasData(Query):
                      date  total_data  completeness
             0  2024-01-01        1440         100.0
             1  2024-01-02        1200         83.33
-            >>> ds.extract_daily("exports/", return_as_list=True)  # writes .json
+            >>> ds.extract_daily("exports/", return_as_list=True)  # also .json
             >>> ds.extract_daily("exports/", n_jobs=4)  # parallel
             >>> ds.extract_daily("exports/", overwrite=False)  # incremental
+            >>> ds.extract_daily("exports/", plot=False)  # skip the PNG
         """
         if output_dir is None:
             output_dir = Path.cwd() / "output"
@@ -368,16 +377,26 @@ class MultiGasData(Query):
             )
             logger.warning(f"Missing files: {', '.join(missing_dates)}")
 
+        df_results = pd.DataFrame(extracted_files)
+        csv_filepath = dataset_dir / f"{self.basename_slug}-completeness.csv"
+        df_results.to_csv(csv_filepath, index=False)
+
+        if plot:
+            # Imported lazily so ``import multigas`` doesn't pull in matplotlib.
+            from multigas.plot.plot_completeness import plot_completeness
+
+            plot_completeness(
+                filepath=csv_filepath,
+                title=f"{self.basename} ({self.dataset_type.label})",
+                verbose=self.verbose,
+            )
+
         if return_as_list:
             json_path = dataset_dir / f"{self.basename_slug}.json"
             with open(json_path, "w", encoding="utf-8") as file:
                 json.dump(extracted_files, file, indent=4, ensure_ascii=False)
             return extracted_files
 
-        df_results = pd.DataFrame(extracted_files)
-        df_results.to_csv(
-            dataset_dir / f"{self.basename_slug}-completeness.csv", index=False
-        )
         return df_results
 
     @staticmethod
