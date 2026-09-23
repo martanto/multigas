@@ -220,6 +220,9 @@ src/multigas/
 │   ├── __init__.py      # Re-exports DataLoader, MultiGasData
 │   ├── loader.py        # DataLoader — file I/O, normalisation, joblib cache
 │   └── multigas_data.py # MultiGasData — DataFrame + provenance wrapper (extends Query)
+├── plot/
+│   ├── __init__.py      # Re-exports plot_completeness
+│   └── plot_completeness.py # plot_completeness — daily-completeness PNG from the summary CSV
 └── utils/
     ├── path.py          # ensure_dir helper
     ├── cache.py         # get_cache_key / get_cache_path / save_cache / load_cache / clear_cache
@@ -231,7 +234,7 @@ src/multigas/
 
 | Name | Kind | Description |
 |---|---|---|
-| `MultiGasData` | class (subclass of `Query`) | Wraps a loaded DataFrame with `dataset_type`, `source_path`, `index_col`, and the fluent `Query` API. Adds `add_wind_direction` / `add_wind_quadrant` for compass-label columns, `to_csv` / `to_excel` for tabular export, and `extract_daily` for per-day CSV splits with completeness stats (also persists the aggregated summary next to the daily folder — as `<source_stem>.xlsx` by default, or `<source_stem>.json` when `return_as_list=True`). Lives in `multigas.data.multigas_data` (re-exported from `multigas.data`) |
+| `MultiGasData` | class (subclass of `Query`) | Wraps a loaded DataFrame with `dataset_type`, `source_path`, `index_col`, and the fluent `Query` API. Adds `add_wind_direction` / `add_wind_quadrant` for compass-label columns, `to_csv` / `to_excel` for tabular export, and `extract_daily` for per-day CSV splits with completeness stats (also writes `<source_slug>-completeness.csv` next to the daily folder, renders it to `<source_slug>-completeness.png` via `multigas.plot.plot_completeness` unless `plot=False`, and adds `<source_slug>.json` when `return_as_list=True`). Lives in `multigas.data.multigas_data` (re-exported from `multigas.data`) |
 | `DatasetType` | `StrEnum` | Sampling intervals as pandas frequency aliases: `ONE_SECOND="1s"`, `TWO_SECONDS="2s"`, `ONE_MINUTE="1min"`, `SIX_HOURS="6h"`, plus categorical modes `ZERO="zero"`, `SPAN="span"`, `WX="wx"`. Exposes `.total_data` (expected records per day for sampling-interval members) and `.label` (hyphenated form such as `"one-minute"`, used as a path segment by `extract_daily`) |
 | `SensorStatus` | `IntEnum` | Datalogger status codes (e.g. `WARMING_UP=-1`, `SAMPLE_ACQUISITION=1`, `SPAN_CO2_SO2=4`), each with a `.description` property |
 | `FileFormat` | `StrEnum` | `CSV`, `EXCEL`, `PARQUET`, `JSON` |
@@ -309,6 +312,9 @@ Sink formats, the auto-log contract for exceptions, and the
 | `joblib` | On-disk DataFrame cache |
 | `loguru` | Structured logging |
 | `python-dotenv` | `.env` loading for `ENABLE_LOG` |
+| `python-slugify` | File-name-safe slugs for output paths |
+| `matplotlib` | Figure rendering (imported lazily by `multigas.plot`) |
+| `data-availability` | Daily-completeness chart used by `plot_completeness` |
 
 ---
 

@@ -24,7 +24,7 @@ def main(n_jobs: int = 1, verbose: bool = False):
                 verbose=verbose,
             )
             logger.info(f"Loaded: {data.__repr__()}")
-            data.extract_daily(n_jobs=n_jobs)
+            data.extract_daily(n_jobs=n_jobs, overwrite=False)
         except Exception as e:
             logger.warning(f"Could not parse {file['filepath']}. {e}")
             continue
