@@ -13,11 +13,13 @@ Example:
 """
 
 import os
+import json
 from typing import Self, Literal
 from pathlib import Path
 
 import pandas as pd
 from joblib import Parallel, delayed
+from slugify import slugify
 
 from multigas.logging import logger
 from multigas.core.query import Query
@@ -82,6 +84,8 @@ class MultiGasData(Query):
             >>> result.numeric_columns  # populated by Query.__init__
         """
         super().__init__(df, index_col, verbose)
+        self.basename = source_path.stem
+        self.basename_slug = slugify(self.basename)
         self.dataset_type: DatasetType = dataset_type
         self.source_path: Path = source_path
 
@@ -224,14 +228,27 @@ class MultiGasData(Query):
 
         Iterates every day between the first and last timestamp of
         :attr:`df` (inclusive), writing the rows for each day to
-        ``<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`` and
-        collecting per-day stats: row count and completeness as a
-        percentage in ``[0, 100]`` (computed by
+        ``<output_dir>/daily/<dataset_type_label>/<source_stem>/<YYYY-MM-DD>.csv``
+        (where ``dataset_type_label`` is :attr:`DatasetType.label` —
+        the hyphenated form such as ``"one-minute"``) and collecting
+        per-day stats: row count and completeness as a percentage in
+        ``[0, 100]`` (computed by
         :func:`multigas.utils.dataframe.calculate_completeness` with
         ``as_percentage=True``, relative to the sampling interval
         implied by :attr:`dataset_type`). Days without data are
         recorded as ``total_data=0`` / ``completeness=0.0`` and the
         full list of missing days is logged at the end.
+
+        Alongside the per-day CSVs, the aggregated stats are also
+        persisted under ``<output_dir>/daily/<dataset_type_label>/``:
+
+        * When ``return_as_list=False`` (the default), the stats are
+          written to ``<source_stem>.xlsx`` via
+          :meth:`pandas.DataFrame.to_excel` (``openpyxl`` engine).
+        * When ``return_as_list=True``, the raw
+          ``list[ExtractedStats]`` is written to ``<source_stem>.json``
+          via :func:`json.dump` with ``indent=4`` and
+          ``ensure_ascii=False``.
 
         When ``n_jobs > 1``, per-day extraction runs in parallel via
         :class:`joblib.Parallel` with the ``loky`` backend. The
@@ -243,22 +260,25 @@ class MultiGasData(Query):
         missing-days warning is still emitted once at the end.
 
         When ``overwrite=False``, days whose CSV already exists
-        under ``<output_dir>/daily/<dataset_type>/`` are left alone
-        — their row is instead reconstructed from the file's line
-        count via :func:`count_csv_rows` (so the returned per-day
-        shape stays intact). The count reflects the file on disk,
-        not the current in-memory :attr:`df` (relevant if a caller
-        has narrowed the frame via, e.g., ``where_date_between``).
+        under ``<output_dir>/daily/<dataset_type_label>/`` are left
+        alone — their row is instead reconstructed from the file's
+        line count via :func:`count_csv_rows` (so the returned
+        per-day shape stays intact). The count reflects the file on
+        disk, not the current in-memory :attr:`df` (relevant if a
+        caller has narrowed the frame via, e.g.,
+        ``where_date_between``).
 
         Args:
             output_dir (Path | str | None): Destination root. When
                 ``None``, files are written under ``<cwd>/output/``.
                 Defaults to ``None``.
             return_as_list (bool): If ``True``, return the raw
-                ``list[ExtractedStats]``; otherwise return a
+                ``list[ExtractedStats]`` and persist it as
+                ``<source_stem>.json``; otherwise return a
                 :class:`pandas.DataFrame` with columns ``date``,
-                ``total_data``, ``completeness`` (percentage).
-                Defaults to ``False``.
+                ``total_data``, ``completeness`` (percentage) and
+                persist it as ``<source_stem>.xlsx``. Defaults to
+                ``False``.
             n_jobs (int): Number of parallel workers. ``1`` (the
                 default) runs sequentially. Values ``> 1`` are
                 capped at ``max(1, os.cpu_count() - 2)`` and
@@ -280,6 +300,7 @@ class MultiGasData(Query):
                      date  total_data  completeness
             0  2024-01-01        1440         100.0
             1  2024-01-02        1200         83.33
+            >>> ds.extract_daily("exports/", return_as_list=True)  # writes .json
             >>> ds.extract_daily("exports/", n_jobs=4)  # parallel
             >>> ds.extract_daily("exports/", overwrite=False)  # incremental
         """
@@ -288,7 +309,8 @@ class MultiGasData(Query):
         else:
             output_dir = Path(output_dir)
 
-        daily_dir = output_dir / "daily" / self.dataset_type.value
+        dataset_dir = output_dir / "daily" / self.dataset_type.label
+        daily_dir = dataset_dir / self.basename_slug
         daily_dir.mkdir(parents=True, exist_ok=True)
 
         df = self.df.copy()
@@ -331,9 +353,7 @@ class MultiGasData(Query):
 
         skipped_count = sum(1 for _, _, _, job_overwrite in jobs if not job_overwrite)
         if skipped_count > 0:
-            logger.info(
-                f"Skipped {skipped_count} existing files under {daily_dir}"
-            )
+            logger.info(f"Skipped {skipped_count} existing files under {daily_dir}")
 
         extracted_files: list[ExtractedStats] = []
         missing_dates: list[str] = []
@@ -349,9 +369,14 @@ class MultiGasData(Query):
             logger.warning(f"Missing files: {', '.join(missing_dates)}")
 
         if return_as_list:
+            json_path = dataset_dir / f"{self.basename_slug}.json"
+            with open(json_path, "w", encoding="utf-8") as file:
+                json.dump(extracted_files, file, indent=4, ensure_ascii=False)
             return extracted_files
 
-        return pd.DataFrame(extracted_files)
+        df_results = pd.DataFrame(extracted_files)
+        df_results.to_excel(dataset_dir / f"{self.basename_slug}.xlsx", index=True)
+        return df_results
 
     @staticmethod
     def _build_jobs(
@@ -474,8 +499,7 @@ class MultiGasData(Query):
         if not overwrite:
             if verbose:
                 logger.info(
-                    f"{date_str} :: Already exists, reading stats from: "
-                    f"{output_file}"
+                    f"{date_str} :: Already exists, reading stats from: {output_file}"
                 )
             total_data = count_csv_rows(output_file)
             return (
@@ -545,8 +569,8 @@ class MultiGasData(Query):
                 Path.cwd()
                 / "output"
                 / "csv"
-                / self.dataset_type.value
-                / f"{self.source_path.stem}.csv"
+                / self.basename_slug
+                / f"{self.basename}.csv"
             )
         else:
             filepath = Path(path)
@@ -588,8 +612,8 @@ class MultiGasData(Query):
                 Path.cwd()
                 / "output"
                 / "excel"
-                / self.dataset_type.value
-                / f"{self.source_path.stem}.xlsx"
+                / self.basename_slug
+                / f"{self.basename}.xlsx"
             )
         else:
             filepath = Path(path)
