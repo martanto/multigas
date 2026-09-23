@@ -288,7 +288,7 @@ summary.head()
 #          date  total_data  completeness
 # 0  2025-01-01        1440         100.0
 # 1  2025-01-02        1200          83.33
-# 2  2025-01-03           0           0.0   # missing day — logged as WARNING
+# 2  2025-01-04        1440         100.0   # 2025-01-03 had no data — skipped, logged as WARNING
 
 # Or pick a custom root and get the raw list back;
 # the list is additionally written as <source_slug>.json
@@ -316,9 +316,10 @@ plot_completeness("exports/daily/one-minute/site-a-completeness.csv")
 
 `completeness` is computed by [`calculate_completeness`](API-Reference.md#multigasutilsdataframe)
 against `DatasetType.total_data`; over-sampled days are capped at
-`100.0` and log a `WARNING`. Missing days (no rows for that date) get
-`total_data=0` / `completeness=0.0` and are enumerated in a single
-`WARNING` line at the end of the run.
+`100.0` and log a `WARNING`. Missing days (no rows for that date) are
+skipped — no CSV, no row in the summary / JSON, so they show as
+"no data" in the plot — and are enumerated in a single `WARNING`
+line at the end of the run.
 
 `n_jobs > 1` dispatches per-day extraction to `joblib.Parallel`
 with the `loky` backend, capped at `max(1, os.cpu_count() - 2)`.
