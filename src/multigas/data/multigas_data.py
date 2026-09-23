@@ -375,8 +375,8 @@ class MultiGasData(Query):
             return extracted_files
 
         df_results = pd.DataFrame(extracted_files)
-        df_results.to_excel(
-            dataset_dir / f"{self.basename_slug}-completeness.xlsx", index=False
+        df_results.to_csv(
+            dataset_dir / f"{self.basename_slug}-completeness.csv", index=False
         )
         return df_results
 
