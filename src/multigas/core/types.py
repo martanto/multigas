@@ -127,6 +127,7 @@ class DatasetType(StrEnum):
             "2s": "two-second",
             "1min": "one-minute",
             "6h": "six-hour",
+            "zero": "zero",
         }
         return _labels.get(self.value, self.value)
 
