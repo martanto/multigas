@@ -320,11 +320,23 @@ MultiGasData.extract_daily(
 Split the working DataFrame by calendar day and write one CSV per day.
 Iterates every day between the first and last timestamp of `df` (inclusive,
 based on `df.index.min().normalize()` / `.max().normalize()`), writing the
-rows for each day to `<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`
-and collecting per-day stats via
-[`calculate_completeness`](#multigasutilsdataframe) with `as_percentage=True`.
-Days without data are recorded as `total_data=0` / `completeness=0.0`, and
-the full list of missing days is logged as a `WARNING` at the end.
+rows for each day to
+`<output_dir>/daily/<DatasetType.label>/<source_stem>/<YYYY-MM-DD>.csv`
+(the dataset-type directory uses [`DatasetType.label`](#datasettype) —
+the hyphenated form such as `"one-minute"`) and collecting per-day
+stats via [`calculate_completeness`](#multigasutilsdataframe) with
+`as_percentage=True`. Days without data are recorded as `total_data=0`
+/ `completeness=0.0`, and the full list of missing days is logged as
+a `WARNING` at the end.
+
+Alongside the per-day CSVs, the aggregated stats are persisted under
+`<output_dir>/daily/<DatasetType.label>/`:
+
+* When `return_as_list=False` (the default), the stats DataFrame is
+  written to `<source_stem>.xlsx` via `to_excel` (`openpyxl` engine).
+* When `return_as_list=True`, the raw `list[ExtractedStats]` is
+  written to `<source_stem>.json` via `json.dump` with `indent=4`
+  and `ensure_ascii=False`.
 
 When `n_jobs > 1`, per-day extraction is dispatched to
 `joblib.Parallel` with the `loky` backend. The effective worker
@@ -336,21 +348,21 @@ workers to keep multi-process log output tidy — the aggregated
 missing-days `WARNING` still fires once from the main process.
 
 When `overwrite=False`, days whose CSV already exists under
-`<output_dir>/daily/<dataset_type>/` are left alone — the write
-is skipped and the row's `total_data` is read back from the file
-via [`count_csv_rows`](#multigasutilsdataframe) (line count minus
-header) so the returned per-day shape (one row per calendar day)
-stays intact. The check is per-file (each day independent); a
-mix of "already-there" and "brand-new" days in the same range is
-fine. Stats reported for kept-on-disk days reflect the file on
-disk, not the current in-memory `df` — relevant if the caller
-has narrowed `df` via, e.g., `where_date_between`. When at least
-one day is skipped, an `INFO` line names the skipped count.
+`<output_dir>/daily/<DatasetType.label>/<source_stem>/` are left
+alone — the write is skipped and the row's `total_data` is read back
+from the file via [`count_csv_rows`](#multigasutilsdataframe) (line
+count minus header) so the returned per-day shape (one row per
+calendar day) stays intact. The check is per-file (each day
+independent); a mix of "already-there" and "brand-new" days in the
+same range is fine. Stats reported for kept-on-disk days reflect
+the file on disk, not the current in-memory `df` — relevant if the
+caller has narrowed `df` via, e.g., `where_date_between`. When at
+least one day is skipped, an `INFO` line names the skipped count.
 
 | Arg | Type | Default | Description |
 |---|---|---|---|
 | `output_dir` | `Path \| str \| None` | `None` | Destination root. When `None`, files are written under `<cwd>/output/`. |
-| `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage). |
+| `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]` and persist it as `<source_stem>.json`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage) and persist it as `<source_stem>.xlsx`. |
 | `n_jobs` | `int` | `1` | Number of parallel workers. `1` runs sequentially. Values `> 1` are capped at `max(1, os.cpu_count() - 2)` and dispatched to `joblib.Parallel` with the `loky` backend. |
 | `overwrite` | `bool` | `True` | When `True`, every per-day CSV is (re)written, replacing any existing file. When `False`, days whose CSV already exists are left alone and their stats are read back from the file via `count_csv_rows`. |
 
@@ -664,6 +676,24 @@ sampling-interval members (used by
 `SPAN` and `WX` are categorical streams with no fixed per-day cadence —
 accessing `.total_data` on either raises `ValueError` naming the members
 that *are* supported.
+
+**`.label` property** — human-readable, hyphenated form of each member,
+used as a directory / file-name segment (e.g. by
+[`extract_daily`](#extract_daily)):
+
+| Member | `.label` |
+|---|---|
+| `ONE_SECOND` | `"one-second"` |
+| `TWO_SECONDS` | `"two-second"` |
+| `ONE_MINUTE` | `"one-minute"` |
+| `SIX_HOURS` | `"six-hour"` |
+| `ZERO` | `"zero"` |
+| `SPAN` | `"span"` |
+| `WX` | `"wx"` |
+
+Deliberately named `label` — not `name` — so it doesn't shadow
+`enum.Enum.name`, which the package's `_missing_` hook relies on. Safe
+to call on every member of the enum.
 
 ### `SensorStatus`
 

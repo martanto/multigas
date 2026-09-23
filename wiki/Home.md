@@ -151,7 +151,7 @@ uv run pytest tests/test_imports.py -v      # circular-import check
 | Term | Meaning |
 |---|---|
 | **TOA5** | Campbell Scientific LoggerNet ASCII table format — a first-line `"TOA5"` marker followed by header, units, sampling, and data rows |
-| **DatasetType** | Enum whose string values are pandas frequency aliases (`"1s"`, `"2s"`, `"6h"`, `"1min"`) plus categorical modes (`"zero"`, `"span"`, `"wx"`) |
+| **DatasetType** | Enum whose string values are pandas frequency aliases (`"1s"`, `"2s"`, `"6h"`, `"1min"`) plus categorical modes (`"zero"`, `"span"`, `"wx"`). Exposes `.total_data` (expected records per day for sampling-interval members) and `.label` (hyphenated form such as `"one-minute"`, used as a path segment by `extract_daily`) |
 | **MultiGasData** | Class wrapping a loaded DataFrame + provenance metadata; lives in `multigas.data.multigas_data` and extends `Query` so all fluent helpers live directly on the result |
 | **Query** | Mixin providing fluent column selection, row filtering, and null / empty inspection. Mutates its working `df` in place; `df_original` is the pristine copy restored by `refresh()` |
 | **COMPARATOR** | List of accepted comparator aliases for `Query.where()` — symbolic (`">="`), English (`"greater than"`), and Indonesian (`"lebih besar sama dengan"`) |

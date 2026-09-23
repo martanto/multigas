@@ -266,11 +266,16 @@ Excel output uses the `openpyxl` engine (a core runtime dependency).
 
 `extract_daily` splits the working DataFrame by calendar day and writes
 one CSV per day under
-`<output_dir>/daily/<dataset_type>/<YYYY-MM-DD>.csv`, returning a
-summary of per-day stats (row count and completeness percentage).
+`<output_dir>/daily/<DatasetType.label>/<source_stem>/<YYYY-MM-DD>.csv`
+(where `DatasetType.label` is the hyphenated form such as
+`"one-minute"`), returning a summary of per-day stats (row count and
+completeness percentage). The aggregated summary is also persisted next
+to the daily folder as `<source_stem>.xlsx` (default) or
+`<source_stem>.json` (when `return_as_list=True`).
 
 ```python
-# Write daily CSVs under <cwd>/output/daily/<dataset_type>/
+# Write daily CSVs under <cwd>/output/daily/<DatasetType.label>/<source_stem>/
+# and the summary as <source_stem>.xlsx one level up
 summary = ds.extract_daily()
 
 summary.head()
@@ -279,7 +284,8 @@ summary.head()
 # 1  2025-01-02        1200          83.33
 # 2  2025-01-03           0           0.0   # missing day — logged as WARNING
 
-# Or pick a custom root and get the raw list back
+# Or pick a custom root and get the raw list back;
+# the summary is written as <source_stem>.json instead of .xlsx
 stats = ds.extract_daily("exports/", return_as_list=True)
 
 # Parallelise per-day extraction (helpful for large multi-year 1s / 2s runs)
@@ -303,8 +309,8 @@ Results stay date-ordered; per-day `verbose` logs are suppressed
 in workers to avoid interleaved multi-process output.
 
 `overwrite=False` skips the write for any day whose CSV already
-exists under `<output_dir>/daily/<dataset_type>/` and instead
-reconstructs the row from the file's line count via
+exists under `<output_dir>/daily/<DatasetType.label>/<source_stem>/`
+and instead reconstructs the row from the file's line count via
 [`count_csv_rows`](API-Reference.md#multigasutilsdataframe), so
 the returned per-day shape stays one row per calendar day. The
 number of skipped days is logged at `INFO`.
