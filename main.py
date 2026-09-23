@@ -1,9 +1,8 @@
 from multigas import read_file
-from multigas.data import MultiGasData
 from multigas.logging import logger
 
 
-def main(verbose: bool = False):
+def main(n_jobs: int = 1, verbose: bool = False):
     files = [
         {
             "type": "6h",
@@ -15,25 +14,21 @@ def main(verbose: bool = False):
         },
     ]
 
-    data: list[MultiGasData] = []
     for file in files:
         try:
             logger.info(f"Loading {file['filepath']}")
-            multigas_data = read_file(
+            data = read_file(
                 file_path=file["filepath"],
                 dataset_type=file["type"],
                 use_cache=True,
                 verbose=verbose,
             )
-            data.append(multigas_data)
-            logger.info(f"Loaded: {multigas_data.__repr__()}")
+            logger.info(f"Loaded: {data.__repr__()}")
+            data.extract_daily(n_jobs=n_jobs)
         except Exception as e:
             logger.warning(f"Could not parse {file['filepath']}. {e}")
             continue
 
-    if len(data) == 0:
-        logger.error("No data found")
-
 
 if __name__ == "__main__":
-    main(True)
+    main(n_jobs=8, verbose=True)
