@@ -96,6 +96,41 @@ class DatasetType(StrEnum):
         _raise_missing_value(cls, value)
 
     @property
+    def label(self) -> str:
+        """Human-readable, hyphenated label for this dataset type.
+
+        Returns a lowercase hyphenated form suitable for use as a
+        directory or file-name segment (e.g. ``"one-minute"``,
+        ``"six-hour"``). Sampling-interval members return the spelled-out
+        cadence; categorical members (:attr:`SPAN`, :attr:`WX`) fall
+        back to their raw string value so this property is safe to call
+        on every member of the enum.
+
+        This is deliberately named ``label`` rather than ``name`` to
+        avoid shadowing :attr:`enum.Enum.name`, which every enum member
+        already provides and which the package relies on internally
+        (e.g. in :func:`_raise_missing_value`).
+
+        Returns:
+            str: A human-readable label such as ``"one-minute"``.
+
+        Example:
+            >>> DatasetType.ONE_MINUTE.label
+            'one-minute'
+            >>> DatasetType.SIX_HOURS.label
+            'six-hour'
+            >>> DatasetType.SPAN.label
+            'span'
+        """
+        _labels: dict[str, str] = {
+            "1s": "one-second",
+            "2s": "two-second",
+            "1min": "one-minute",
+            "6h": "six-hour",
+        }
+        return _labels.get(self.value, self.value)
+
+    @property
     def total_data(self) -> int:
         """Expected number of records per day for this dataset type.
 
