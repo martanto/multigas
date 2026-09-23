@@ -47,6 +47,9 @@ multigas/
 │   │   ├── __init__.py          # Re-exports DataLoader, MultiGasData
 │   │   ├── loader.py            # DataLoader — file I/O, normalisation, joblib cache
 │   │   └── multigas_data.py     # MultiGasData — DataFrame + provenance wrapper (extends Query)
+│   ├── plot/
+│   │   ├── __init__.py          # Re-exports plot_completeness
+│   │   └── plot_completeness.py # plot_completeness — daily-completeness PNG
 │   └── utils/
 │       ├── __init__.py          # Docstring-only; import helpers directly
 │       ├── path.py              # ensure_dir

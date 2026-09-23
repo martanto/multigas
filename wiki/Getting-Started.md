@@ -16,7 +16,8 @@ run a few queries against the result.
 | Package manager | [`uv`](https://docs.astral.sh/uv/) — the project uses `uv` exclusively; do **not** use `pip`, `pip install`, or `python -m pip` |
 
 Runtime dependencies pulled in by `uv sync`: `pandas`, `numpy`,
-`openpyxl`, `joblib`, `loguru`, `python-dotenv`.
+`openpyxl`, `joblib`, `loguru`, `python-dotenv`, `python-slugify`,
+`matplotlib`, `data-availability`.
 
 ---
 
@@ -266,16 +267,21 @@ Excel output uses the `openpyxl` engine (a core runtime dependency).
 
 `extract_daily` splits the working DataFrame by calendar day and writes
 one CSV per day under
-`<output_dir>/daily/<DatasetType.label>/<source_stem>/<YYYY-MM-DD>.csv`
+`<output_dir>/daily/<DatasetType.label>/<source_slug>/<YYYY-MM-DD>.csv`
 (where `DatasetType.label` is the hyphenated form such as
-`"one-minute"`), returning a summary of per-day stats (row count and
-completeness percentage). The aggregated summary is also persisted next
-to the daily folder as `<source_stem>.xlsx` (default) or
-`<source_stem>.json` (when `return_as_list=True`).
+`"one-minute"` and `<source_slug>` is the slugified source file stem),
+returning a summary of per-day stats (row count and completeness
+percentage). Next to the daily folder it also writes:
+
+* `<source_slug>-completeness.csv` — the aggregated summary (always);
+* `<source_slug>-completeness.png` — a daily-availability chart of that
+  summary (when `plot=True`, the default; a plotting failure only logs
+  a `WARNING`);
+* `<source_slug>.json` — the raw stats list (when `return_as_list=True`).
 
 ```python
-# Write daily CSVs under <cwd>/output/daily/<DatasetType.label>/<source_stem>/
-# and the summary as <source_stem>.xlsx one level up
+# Write daily CSVs under <cwd>/output/daily/<DatasetType.label>/<source_slug>/
+# and <source_slug>-completeness.csv / .png one level up
 summary = ds.extract_daily()
 
 summary.head()
@@ -285,7 +291,7 @@ summary.head()
 # 2  2025-01-03           0           0.0   # missing day — logged as WARNING
 
 # Or pick a custom root and get the raw list back;
-# the summary is written as <source_stem>.json instead of .xlsx
+# the list is additionally written as <source_slug>.json
 stats = ds.extract_daily("exports/", return_as_list=True)
 
 # Parallelise per-day extraction (helpful for large multi-year 1s / 2s runs)
@@ -295,6 +301,17 @@ summary = ds.extract_daily("exports/", n_jobs=4)
 # re-write only the new / missing ones. Good for a nightly extract job
 # that reprocesses the same range without rewriting historical days.
 summary = ds.extract_daily("exports/", overwrite=False)
+
+# Skip the completeness PNG (avoids importing matplotlib)
+summary = ds.extract_daily("exports/", plot=False)
+```
+
+To re-plot an existing summary on its own:
+
+```python
+from multigas.plot import plot_completeness
+
+plot_completeness("exports/daily/one-minute/site-a-completeness.csv")
 ```
 
 `completeness` is computed by [`calculate_completeness`](API-Reference.md#multigasutilsdataframe)

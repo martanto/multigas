@@ -49,6 +49,8 @@ required.
   - [`multigas.utils.cache`](#multigasutilscache)
   - [`multigas.utils.validation`](#multigasutilsvalidation)
   - [`multigas.utils.dataframe`](#multigasutilsdataframe)
+- [Plotting (`multigas.plot`)](#plotting-multigasplot)
+  - [`plot_completeness`](#plot_completeness)
 - [Constants (`multigas.core.constant`)](#constants-multigascoreconstant)
 
 ---
@@ -314,6 +316,7 @@ MultiGasData.extract_daily(
     return_as_list: bool = False,
     n_jobs: int = 1,
     overwrite: bool = True,
+    plot: bool = True,
 ) -> list[ExtractedStats] | pd.DataFrame
 ```
 
@@ -321,9 +324,10 @@ Split the working DataFrame by calendar day and write one CSV per day.
 Iterates every day between the first and last timestamp of `df` (inclusive,
 based on `df.index.min().normalize()` / `.max().normalize()`), writing the
 rows for each day to
-`<output_dir>/daily/<DatasetType.label>/<source_stem>/<YYYY-MM-DD>.csv`
+`<output_dir>/daily/<DatasetType.label>/<source_slug>/<YYYY-MM-DD>.csv`
 (the dataset-type directory uses [`DatasetType.label`](#datasettype) —
-the hyphenated form such as `"one-minute"`) and collecting per-day
+the hyphenated form such as `"one-minute"`; `<source_slug>` is the
+slugified source file stem) and collecting per-day
 stats via [`calculate_completeness`](#multigasutilsdataframe) with
 `as_percentage=True`. Days without data are recorded as `total_data=0`
 / `completeness=0.0`, and the full list of missing days is logged as
@@ -332,11 +336,16 @@ a `WARNING` at the end.
 Alongside the per-day CSVs, the aggregated stats are persisted under
 `<output_dir>/daily/<DatasetType.label>/`:
 
-* When `return_as_list=False` (the default), the stats DataFrame is
-  written to `<source_stem>.xlsx` via `to_excel` (`openpyxl` engine).
+* `<source_slug>-completeness.csv` is always written, with columns
+  `date`, `total_data`, `completeness`.
+* When `plot=True` (the default), that CSV is rendered to
+  `<source_slug>-completeness.png` via
+  [`plot_completeness`](#plot_completeness), titled
+  `"<source_stem> (<DatasetType.label>)"`. Plotting failures are
+  logged at `WARNING` and never abort the extraction.
 * When `return_as_list=True`, the raw `list[ExtractedStats]` is
-  written to `<source_stem>.json` via `json.dump` with `indent=4`
-  and `ensure_ascii=False`.
+  additionally written to `<source_slug>.json` via `json.dump` with
+  `indent=4` and `ensure_ascii=False`.
 
 When `n_jobs > 1`, per-day extraction is dispatched to
 `joblib.Parallel` with the `loky` backend. The effective worker
@@ -348,7 +357,7 @@ workers to keep multi-process log output tidy — the aggregated
 missing-days `WARNING` still fires once from the main process.
 
 When `overwrite=False`, days whose CSV already exists under
-`<output_dir>/daily/<DatasetType.label>/<source_stem>/` are left
+`<output_dir>/daily/<DatasetType.label>/<source_slug>/` are left
 alone — the write is skipped and the row's `total_data` is read back
 from the file via [`count_csv_rows`](#multigasutilsdataframe) (line
 count minus header) so the returned per-day shape (one row per
@@ -362,9 +371,10 @@ least one day is skipped, an `INFO` line names the skipped count.
 | Arg | Type | Default | Description |
 |---|---|---|---|
 | `output_dir` | `Path \| str \| None` | `None` | Destination root. When `None`, files are written under `<cwd>/output/`. |
-| `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]` and persist it as `<source_stem>.json`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage) and persist it as `<source_stem>.xlsx`. |
+| `return_as_list` | `bool` | `False` | If `True`, return the raw `list[ExtractedStats]` and additionally persist it as `<source_slug>.json`; otherwise return a `pd.DataFrame` with columns `date`, `total_data`, `completeness` (percentage). The `-completeness.csv` summary is written either way. |
 | `n_jobs` | `int` | `1` | Number of parallel workers. `1` runs sequentially. Values `> 1` are capped at `max(1, os.cpu_count() - 2)` and dispatched to `joblib.Parallel` with the `loky` backend. |
 | `overwrite` | `bool` | `True` | When `True`, every per-day CSV is (re)written, replacing any existing file. When `False`, days whose CSV already exists are left alone and their stats are read back from the file via `count_csv_rows`. |
+| `plot` | `bool` | `True` | Render the completeness summary to `<source_slug>-completeness.png` via [`plot_completeness`](#plot_completeness). |
 
 **Returns:** `list[ExtractedStats] | pd.DataFrame` — per-day stats, one
 entry per calendar day in the source range. `completeness` is a
@@ -878,6 +888,47 @@ calls are no-ops.
 | `convert_to_wind_quadrant` | `(direction_degree: float, wind_quadrants: list[dict[str, Any]] \| None = None, as_code: bool = False) -> str \| None` | Map a single compass bearing to its quadrant label. `wind_quadrants` defaults to `WIND_QUADRANTS_8`. Same NaN and normalisation rules as `convert_to_wind_direction`. |
 | `calculate_completeness` | `(total_data: int, dataset_type: DatasetType, as_percentage: bool = False) -> float` | Divide `total_data` by [`DatasetType.total_data`](#datasettype) to yield a fraction in `[0, 1]`, or a percentage in `[0, 100]` when `as_percentage=True`. When the raw ratio exceeds `1.0`, a `WARNING` is logged (naming `total_data`, the expected count, and the `DatasetType`) and the returned value is capped at `1.0` / `100.0`. Raises `ValueError` when `dataset_type` is `SPAN` or `WX` (no fixed daily count). |
 | `count_csv_rows` | `(path: Path \| str) -> int` | Return the number of data rows in a CSV file (line count minus the header row). Fast binary read; returns `0` for a zero-byte or header-only file. Assumes no embedded newlines in quoted fields (Campbell datalogger output satisfies this) — fall back to `len(pd.read_csv(path))` for arbitrary CSVs that may quote multi-line strings. |
+
+---
+
+## Plotting (`multigas.plot`)
+
+Plotting helpers. Importing `multigas` does **not** import this
+subpackage (or matplotlib); `extract_daily` imports it lazily only when
+`plot=True`.
+
+### `plot_completeness`
+
+```python
+from multigas.plot import plot_completeness
+
+plot_completeness(
+    filepath: Path | str,
+    title: str | None = None,
+    verbose: bool = False,
+) -> Path | None
+```
+
+Render a daily-completeness CSV (columns `date` as `YYYY-MM-DD` and
+`completeness` as a percentage in `[0, 100]` — the file written by
+[`extract_daily`](#extract_daily)) as a bar-style availability chart via
+the [`data-availability`](https://pypi.org/project/data-availability/)
+package, and save it next to the CSV with a `.png` suffix (150 dpi).
+The matplotlib figure is always closed after saving, so repeated calls
+don't accumulate open figures.
+
+Plotting is a secondary output, so failures are soft: any exception
+while reading, drawing, or saving is logged at `WARNING` and `None` is
+returned.
+
+| Arg | Type | Default | Description |
+|---|---|---|---|
+| `filepath` | `Path \| str` | — | Path to the completeness CSV. |
+| `title` | `str \| None` | `None` | Figure title. Defaults to the CSV file stem. |
+| `verbose` | `bool` | `False` | Log the saved figure path at `INFO`. |
+
+**Returns:** `Path | None` — path of the saved PNG, or `None` if
+plotting failed.
 
 ---
 
