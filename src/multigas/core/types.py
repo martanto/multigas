@@ -305,9 +305,9 @@ class FileFormat(StrEnum):
 class ExtractedStats(TypedDict):
     """Per-day summary emitted by :meth:`MultiGasData.extract_daily`.
 
-    One entry per calendar day in the source range. The ``date`` field
-    is always populated; ``total_data`` and ``completeness`` are ``0``
-    / ``0.0`` when the day has no rows in the source frame. The
+    One entry per calendar day in the source range that has data —
+    days with no rows in the source frame are omitted from the
+    results (and only reported in a ``WARNING`` log). The
     ``completeness`` value is a percentage in ``[0, 100]`` — it comes
     from :func:`multigas.utils.dataframe.calculate_completeness` with
     ``as_percentage=True`` (which also caps the value at ``100.0``
@@ -315,11 +315,9 @@ class ExtractedStats(TypedDict):
 
     Attributes:
         date: Calendar day, formatted as ``"YYYY-MM-DD"``.
-        total_data: Number of rows written to the day's CSV; ``0`` for
-            missing days.
+        total_data: Number of rows written to the day's CSV.
         completeness: Percentage in ``[0, 100]`` from
-            :func:`calculate_completeness` with ``as_percentage=True``;
-            ``0.0`` for missing days.
+            :func:`calculate_completeness` with ``as_percentage=True``.
 
     Example:
         >>> stats: ExtractedStats = {

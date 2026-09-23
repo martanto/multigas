@@ -237,8 +237,9 @@ class MultiGasData(Query):
         :func:`multigas.utils.dataframe.calculate_completeness` with
         ``as_percentage=True``, relative to the sampling interval
         implied by :attr:`dataset_type`). Days without data are
-        recorded as ``total_data=0`` / ``completeness=0.0`` and the
-        full list of missing days is logged at the end.
+        skipped — no CSV is written and they are left out of the
+        returned stats and every summary file — and the full list of
+        missing days is logged at ``WARNING`` at the end.
 
         Alongside the per-day CSVs, the aggregated stats are also
         persisted under ``<output_dir>/daily/<dataset_type_label>/``
@@ -300,8 +301,9 @@ class MultiGasData(Query):
 
         Returns:
             list[ExtractedStats] | pd.DataFrame: Per-day stats, one
-            entry per calendar day in the source range.
-            ``completeness`` is a percentage in ``[0, 100]``.
+            entry per calendar day in the source range that has data
+            (missing days are omitted). ``completeness`` is a
+            percentage in ``[0, 100]``.
 
         Example:
             >>> ds.extract_daily("exports/")
@@ -367,9 +369,10 @@ class MultiGasData(Query):
         extracted_files: list[ExtractedStats] = []
         missing_dates: list[str] = []
         for stats, is_missing in results:
-            extracted_files.append(stats)
             if is_missing:
                 missing_dates.append(stats["date"])
+                continue
+            extracted_files.append(stats)
 
         if missing_dates:
             logger.warning(
@@ -490,8 +493,8 @@ class MultiGasData(Query):
             date_str (str): Calendar day formatted as ``YYYY-MM-DD``.
             df_daily (pd.DataFrame): Rows for this day. An empty
                 frame signals either a missing day (when
-                ``overwrite=True``) — which triggers the
-                ``total_data=0`` / ``completeness=0.0`` return —
+                ``overwrite=True``) — which returns a zeroed stats
+                entry flagged ``is_missing`` so the caller can drop it —
                 or a placeholder for a skipped write (when
                 ``overwrite=False``).
             output_file (Path): Target CSV path.

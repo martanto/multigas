@@ -12,6 +12,7 @@ Example:
 
 from pathlib import Path
 
+import seaborn as sns
 import matplotlib.pyplot as plt
 from data_availability import PlotAvailability
 
@@ -54,22 +55,29 @@ def plot_completeness(
     figure_filepath = filepath.with_suffix(".png")
 
     try:
-        fig = (
-            PlotAvailability(filepath)
-            .select()
-            .plot(
-                title=title or filepath.stem,
-                kind="bar",
-                hspace=2,
-                fig_width=10,
-                figsize_per_year=0.8,
-                cbar_height=5,
+        # Scoped (not sns.set_style) so the caller's global rcParams are
+        # untouched; must be active when the figure is created. Seaborn
+        # forces white patch edges, which swallow the thin daily bars.
+        with sns.axes_style("whitegrid", rc={"patch.force_edgecolor": False}):
+            fig = (
+                PlotAvailability(filepath)
+                .select()
+                .plot(
+                    title=title or filepath.stem,
+                    kind="bar",
+                    hspace=2,
+                    fig_width=10,
+                    figsize_per_year=0.8,
+                    cbar_height=5,
+                    bar_gap=1.0,  # full-day width: no white gap between bars
+                    # Days absent from the CSV (skipped by extract_daily) = grey.
+                    missing_color="#e0e0e0",
+                )
             )
-        )
-        try:
-            fig.savefig(figure_filepath, dpi=150, bbox_inches="tight")
-        finally:
-            plt.close(fig)
+            try:
+                fig.savefig(figure_filepath, dpi=150, bbox_inches="tight")
+            finally:
+                plt.close(fig)
     except Exception as e:
         logger.warning(f"Could not plot completeness for {filepath}: {e}")
         return None
