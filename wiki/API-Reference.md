@@ -329,9 +329,10 @@ rows for each day to
 the hyphenated form such as `"one-minute"`; `<source_slug>` is the
 slugified source file stem) and collecting per-day
 stats via [`calculate_completeness`](#multigasutilsdataframe) with
-`as_percentage=True`. Days without data are recorded as `total_data=0`
-/ `completeness=0.0`, and the full list of missing days is logged as
-a `WARNING` at the end.
+`as_percentage=True`. Days without data are skipped — no CSV is
+written and they are omitted from the returned stats and every
+summary file — and the full list of missing days is logged as a
+`WARNING` at the end.
 
 Alongside the per-day CSVs, the aggregated stats are persisted under
 `<output_dir>/daily/<DatasetType.label>/`:
@@ -361,7 +362,7 @@ When `overwrite=False`, days whose CSV already exists under
 alone — the write is skipped and the row's `total_data` is read back
 from the file via [`count_csv_rows`](#multigasutilsdataframe) (line
 count minus header) so the returned per-day shape (one row per
-calendar day) stays intact. The check is per-file (each day
+calendar day with data) stays intact. The check is per-file (each day
 independent); a mix of "already-there" and "brand-new" days in the
 same range is fine. Stats reported for kept-on-disk days reflect
 the file on disk, not the current in-memory `df` — relevant if the
@@ -377,8 +378,8 @@ least one day is skipped, an `INFO` line names the skipped count.
 | `plot` | `bool` | `True` | Render the completeness summary to `<source_slug>-completeness.png` via [`plot_completeness`](#plot_completeness). |
 
 **Returns:** `list[ExtractedStats] | pd.DataFrame` — per-day stats, one
-entry per calendar day in the source range. `completeness` is a
-percentage in `[0, 100]`.
+entry per calendar day in the source range that has data (missing
+days are omitted). `completeness` is a percentage in `[0, 100]`.
 
 ---
 
@@ -775,8 +776,8 @@ Module: `multigas.core.types`.
 | Key | Type | Description |
 |---|---|---|
 | `date` | `str` | Calendar day, formatted as `"YYYY-MM-DD"`. |
-| `total_data` | `int` | Number of rows written for that day; `0` when the day has no data. |
-| `completeness` | `float` | Percentage in `[0, 100]`, from `calculate_completeness(total_data, dataset_type, as_percentage=True)`. `0.0` for missing days. |
+| `total_data` | `int` | Number of rows written for that day. Days with no data get no entry. |
+| `completeness` | `float` | Percentage in `[0, 100]`, from `calculate_completeness(total_data, dataset_type, as_percentage=True)`. |
 
 ---
 
