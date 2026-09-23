@@ -189,3 +189,5 @@ changelogs/
 *.xlsx
 *.png
 *.ipynb
+/.agents
+/.github
