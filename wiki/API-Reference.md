@@ -87,7 +87,7 @@ calls `.load()`, and returns the `MultiGasData` result.
 | `dataset_type` | `DatasetType \| str` | — | Dataset identifier — a `DatasetType` member or its string value (`"1s"`, `"2s"`, `"1min"`, `"6h"`, `"zero"`, `"span"`, `"wx"`). |
 | `index_col` | `str` | `"TIMESTAMP"` | Column to promote to the `pd.DatetimeIndex`. Case-sensitive; must exist in the source. |
 | `drop_empty_columns` | `bool` | `False` | Drop columns that are entirely NaN after normalisation. |
-| `normalize` | `bool` | `True` | Replace NAN sentinel strings with `np.nan` and coerce object columns to numeric where possible. |
+| `normalize` | `bool` | `True` | Replace NAN sentinel strings with `np.nan`, drop duplicate timestamps (keeping the last row), and coerce object columns to numeric where possible. |
 | `use_cache` | `bool` | `True` | Read from / write to the on-disk `joblib` cache when `normalize=True`. |
 | `output_dir` | `Path \| str \| None` | `None` (→ `<cwd>/output`) | Root output directory. |
 | `cache_dir` | `Path \| str \| None` | `None` (→ `<output_dir>/cache`) | Directory for `.pkl` cache entries. |
@@ -159,7 +159,7 @@ DataLoader.load(
 | `dataset_type` | `DatasetType \| str` | — | Dataset identifier — a `DatasetType` member or its string value. |
 | `index_col` | `str` | `"TIMESTAMP"` | Column to promote to the `pd.DatetimeIndex`. Case-sensitive. |
 | `drop_empty_columns` | `bool` | `False` | Drop columns entirely NaN after normalisation (only when `normalize=True`). |
-| `normalize` | `bool` | `True` | Replace NAN sentinel strings with `np.nan` and coerce object columns to numeric. |
+| `normalize` | `bool` | `True` | Replace NAN sentinel strings with `np.nan`, drop duplicate timestamps (keeping the last row), and coerce object columns to numeric. |
 | `use_cache` | `bool` | `True` | Read from / write to the on-disk cache. Caching only applies when `normalize=True`. |
 
 **Returns:** `MultiGasData`.

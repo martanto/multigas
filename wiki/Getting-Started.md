@@ -97,7 +97,7 @@ flowchart TD
     B -->|yes| E["Return MultiGasData<br/>from cache"]
     B -->|no| C["_load_csv()<br/>TOA5 auto-detect --> pandas.read_csv"]
     C --> D{normalize=True?}
-    D -->|yes| F["_normalize()<br/>NaN sentinels --> numeric coercion<br/>optional drop empty cols"]
+    D -->|yes| F["_normalize()<br/>NaN sentinels --> dedupe timestamps (keep last)<br/>--> numeric coercion<br/>optional drop empty cols"]
     D -->|no| G["Return MultiGasData"]
     F --> H["save_cache()<br/>(if use_cache=True)"]
     H --> G
@@ -130,7 +130,7 @@ ds = loader.load(
     dataset_type="1min",
     index_col="TIMESTAMP",      # column promoted to the DatetimeIndex
     drop_empty_columns=False,   # True to drop all-NaN columns
-    normalize=True,             # NaN-sentinel replacement + numeric coercion
+    normalize=True,             # NaN sentinels + dedupe timestamps + numeric coercion
     use_cache=True,             # read/write the joblib cache
 )
 ```
