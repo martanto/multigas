@@ -78,7 +78,7 @@ flowchart TD
     C --> D{Cache hit?}
     D -->|yes| E["joblib cache<br/>(.pkl)"]
     D -->|no| F["_load_csv()<br/>TOA5 detect --> pandas.read_csv"]
-    F --> G["_normalize()<br/>NaN sentinels --> numeric coercion"]
+    F --> G["_normalize()<br/>NaN sentinels --> dedupe --> numeric coercion"]
     G --> E
     E --> H["MultiGasData<br/>(class wrapping df + metadata)"]
     G --> H
@@ -158,7 +158,7 @@ uv run pytest tests/test_imports.py -v      # circular-import check
 | **MultiGasData** | Class wrapping a loaded DataFrame + provenance metadata; lives in `multigas.data.multigas_data` and extends `Query` so all fluent helpers live directly on the result |
 | **Query** | Mixin providing fluent column selection, row filtering, and null / empty inspection. Mutates its working `df` in place; `df_original` is the pristine copy restored by `refresh()` |
 | **COMPARATOR** | List of accepted comparator aliases for `Query.where()` — symbolic (`">="`), English (`"greater than"`), and Indonesian (`"lebih besar sama dengan"`) |
-| **normalise** | Replace `"NAN"` / `"NaN"` / `""` string sentinels with `np.nan` and coerce object-dtype columns to numeric where possible |
+| **normalise** | Replace `"NAN"` / `"NaN"` / `""` string sentinels with `np.nan`, drop rows with a duplicated `TIMESTAMP` (keeping the last), and coerce object-dtype columns to numeric where possible |
 | **cache** | On-disk `joblib` pickle keyed by `md5(absolute_path + mtime)`; stored under `output/cache/*.pkl`. Stale or corrupted entries are dropped transparently |
 | **ENABLE_LOG** | Environment variable (`"true"`/`"false"`) that gates loguru handler registration in `multigas.logging` |
 
