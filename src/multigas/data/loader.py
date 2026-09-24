@@ -7,7 +7,8 @@ pipeline:
 
 1. Cache lookup (skipped when ``overwrite=True`` or ``normalize=False``).
 2. On-disk read — TOA5 auto-detection first, plain CSV as fallback.
-3. Optional normalisation (NaN-sentinel replacement, numeric coercion,
+3. Optional normalisation (NaN-sentinel replacement, duplicate-timestamp
+   removal keeping the last row, numeric coercion,
    optional empty-column drop) followed by cache write.
 
 For a one-call convenience wrapper see :func:`multigas.core.io.read_file`.
@@ -42,7 +43,8 @@ class DataLoader:
     """File I/O, normalisation, and cache management for multi-gas datasets.
 
     Reads TOA5 or plain CSV files, optionally normalises them (NaN sentinels
-    replaced, numeric coercion, empty-column drop) and serialises the result
+    replaced, duplicate timestamps dropped keeping the last row, numeric
+    coercion, empty-column drop) and serialises the result
     to an on-disk joblib cache keyed by absolute path + mtime.
 
     Attributes:
@@ -327,7 +329,8 @@ class DataLoader:
         """Replace NAN sentinel strings with ``np.nan`` and coerce numeric columns.
 
         Replaces the string values ``"NAN"``, ``"NaN"``, and ``""`` with
-        ``np.nan``, then attempts ``pd.to_numeric`` conversion on every column
+        ``np.nan``, drops rows with a duplicated index (keeping the last
+        occurrence), then attempts ``pd.to_numeric`` conversion on every column
         whose dtype is ``object``. When ``source_path`` is given and the
         normalised CSV under :attr:`normalize_dir` already exists with an mtime
         at least as new as the source, the write is skipped to avoid redundant
@@ -361,6 +364,13 @@ class DataLoader:
         if "RECORD" in df.columns:
             df = df.dropna(subset=["RECORD"])
             df["RECORD"] = df["RECORD"].astype(int)
+
+        # Drop duplicate timestamps, keeping the most recent write (last row).
+        duplicated = df.index.duplicated(keep="last")
+        if duplicated.any():
+            df = df[~duplicated]
+            if self.verbose:
+                logger.info(f"Dropped {int(duplicated.sum())} duplicate row(s).")
 
         # Convert clearly numeric object columns only.
         for index, _ in enumerate(df.columns):
