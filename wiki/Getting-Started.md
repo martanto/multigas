@@ -17,7 +17,7 @@ run a few queries against the result.
 
 Runtime dependencies pulled in by `uv sync`: `pandas`, `numpy`,
 `openpyxl`, `joblib`, `loguru`, `python-dotenv`, `python-slugify`,
-`matplotlib`, `data-availability`.
+`matplotlib`, `seaborn`, `data-availability`.
 
 ---
 
@@ -27,7 +27,10 @@ Clone the repository and install with `uv`:
 
 ```bash
 # 1. Install the uv package manager (one time, per machine)
-pip install uv
+#    macOS / Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+#    Windows (PowerShell):
+#    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 # 2. Clone
 git clone https://github.com/martanto/multigas.git
@@ -99,14 +102,28 @@ flowchart TD
     C --> D{normalize=True?}
     D -->|yes| F["_normalize()<br/>NaN sentinels --> dedupe timestamps (keep last)<br/>--> numeric coercion<br/>optional drop empty cols"]
     D -->|no| G["Return MultiGasData"]
-    F --> H["save_cache()<br/>(if use_cache=True)"]
+    F --> S["check_sampling_consistency()<br/>(1s / 2s / 1min / 6h only)<br/>keep consistent rows"]
+    S --> H["save_cache()<br/>(if use_cache=True)"]
     H --> G
 ```
 
+Two things to know about a normalised load:
+
+- **Duplicate timestamps** are collapsed to the last row written.
+- **Sampling-interval datasets are filtered for regular spacing.** For
+  `1s` / `2s` / `1min` / `6h` data, rows whose gap from the previous row
+  differs from the expected interval are dropped — including the first
+  row after every data gap. `zero` / `span` / `wx` streams are not
+  filtered. Pass `normalize=False` to get the raw rows.
+
+A normalised copy of every loaded file is also written to
+`<output_dir>/normalized/<source_stem>.csv`.
+
 The cache is keyed by `md5(absolute_path + mtime)` and stored under
 `output/cache/*.pkl`. Stale (mtime/size changed) or corrupted entries
-are dropped transparently — the loader logs a `WARNING` and reloads
-from source.
+are dropped transparently and the file is reloaded from source
+(corrupted entries always log a `WARNING`; stale ones only with
+`verbose=True`).
 
 ---
 
@@ -153,8 +170,8 @@ restored via `refresh()`.
 ds.select_numeric_columns().selected_columns
 # ['CO2', 'SO2', 'H2S', ...]
 
-ds.select_columns(["CO2", "SO2"]).df.columns.tolist()
-# ['CO2', 'SO2']  (after .get() commits the selection)
+ds.select_columns(["CO2", "SO2"]).get().columns.tolist()
+# ['CO2', 'SO2']  (.get() commits the selection)
 ```
 
 `get()` commits the selection — it replaces `ds.df` with the
@@ -246,14 +263,15 @@ dropped).
 `MultiGasData` can persist its current working DataFrame to disk in two
 tabular formats. Both methods return the string path of the written
 file, create the parent directory on demand, and default to writing
-under `<cwd>/output/<format>/<dataset_type>/<source_stem>.<ext>` when
-called with no argument.
+under `<cwd>/output/<format>/<source_slug>/<source_stem>.<ext>` when
+called with no argument (`<source_slug>` is the slugified source file
+stem).
 
 ```python
-# Write CSV to output/csv/<dataset_type>/<source_stem>.csv
+# Write CSV to output/csv/<source_slug>/<source_stem>.csv
 ds.to_csv()
 
-# Write Excel to output/excel/<dataset_type>/<source_stem>.xlsx
+# Write Excel to output/excel/<source_slug>/<source_stem>.xlsx
 ds.to_excel()
 
 # Explicit path — suffix is appended if missing.
@@ -302,7 +320,7 @@ summary = ds.extract_daily("exports/", n_jobs=4)
 # that reprocesses the same range without rewriting historical days.
 summary = ds.extract_daily("exports/", overwrite=False)
 
-# Skip the completeness PNG (avoids importing matplotlib)
+# Skip the completeness PNG (avoids importing matplotlib / seaborn)
 summary = ds.extract_daily("exports/", plot=False)
 ```
 
@@ -318,7 +336,7 @@ plot_completeness("exports/daily/one-minute/site-a-completeness.csv")
 against `DatasetType.total_data`; over-sampled days are capped at
 `100.0` and log a `WARNING`. Missing days (no rows for that date) are
 skipped — no CSV, no row in the summary / JSON, so they show as
-"no data" in the plot — and are enumerated in a single `WARNING`
+light-grey "no data" days in the plot — and are enumerated in a single `WARNING`
 line at the end of the run.
 
 `n_jobs > 1` dispatches per-day extraction to `joblib.Parallel`
@@ -327,7 +345,7 @@ Results stay date-ordered; per-day `verbose` logs are suppressed
 in workers to avoid interleaved multi-process output.
 
 `overwrite=False` skips the write for any day whose CSV already
-exists under `<output_dir>/daily/<DatasetType.label>/<source_stem>/`
+exists under `<output_dir>/daily/<DatasetType.label>/<source_slug>/`
 and instead reconstructs the row from the file's line count via
 [`count_csv_rows`](API-Reference.md#multigasutilsdataframe), so
 the returned per-day shape stays one row per calendar day. The

@@ -53,9 +53,9 @@ multigas/
 │   └── utils/
 │       ├── __init__.py          # Docstring-only; import helpers directly
 │       ├── path.py              # ensure_dir
-│       ├── cache.py             # get_cache_key / get_cache_path / save_cache / clear_cache
+│       ├── cache.py             # get_cache_key / get_cache_path / save_cache / load_cache / clear_cache
 │       ├── validation.py        # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-│       └── dataframe.py         # to_datetime_index, get_dates, convert_to_wind_*
+│       └── dataframe.py         # to_datetime_index, get_dates, convert_to_wind_*, calculate_completeness, count_csv_rows
 ├── tests/                       # Pytest suite (and where all test output belongs)
 ├── wiki/                        # This documentation
 ├── changelogs/                  # Daily task log (git-ignored, local only)
@@ -79,9 +79,10 @@ flowchart TD
     D -->|yes| E["joblib cache<br/>(.pkl)"]
     D -->|no| F["_load_csv()<br/>TOA5 detect --> pandas.read_csv"]
     F --> G["_normalize()<br/>NaN sentinels --> dedupe --> numeric coercion"]
-    G --> E
+    G --> S["check_sampling_consistency()<br/>(sampling-interval types)"]
+    S --> E
     E --> H["MultiGasData<br/>(class wrapping df + metadata)"]
-    G --> H
+    S --> H
     H --> I["Query API<br/>select_/where_/get / add_wind_*"]
     I --> J["pd.DataFrame result"]
 ```
@@ -158,7 +159,8 @@ uv run pytest tests/test_imports.py -v      # circular-import check
 | **MultiGasData** | Class wrapping a loaded DataFrame + provenance metadata; lives in `multigas.data.multigas_data` and extends `Query` so all fluent helpers live directly on the result |
 | **Query** | Mixin providing fluent column selection, row filtering, and null / empty inspection. Mutates its working `df` in place; `df_original` is the pristine copy restored by `refresh()` |
 | **COMPARATOR** | List of accepted comparator aliases for `Query.where()` — symbolic (`">="`), English (`"greater than"`), and Indonesian (`"lebih besar sama dengan"`) |
-| **normalise** | Replace `"NAN"` / `"NaN"` / `""` string sentinels with `np.nan`, drop rows with a duplicated `TIMESTAMP` (keeping the last), and coerce object-dtype columns to numeric where possible |
+| **normalise** | Replace `"NAN"` / `"NaN"` / `""` string sentinels with `np.nan`, drop rows with a missing `RECORD`, drop rows with a duplicated `TIMESTAMP` (keeping the last), and coerce object-dtype columns to numeric where possible. For sampling-interval `DatasetType`s the loader then keeps only rows whose spacing matches the expected interval (`check_sampling_consistency`) |
+| **completeness** | Per-day row count divided by `DatasetType.total_data`, as a percentage capped at `100`. Produced by `extract_daily` and plotted by `plot_completeness` |
 | **cache** | On-disk `joblib` pickle keyed by `md5(absolute_path + mtime)`; stored under `output/cache/*.pkl`. Stale or corrupted entries are dropped transparently |
 | **ENABLE_LOG** | Environment variable (`"true"`/`"false"`) that gates loguru handler registration in `multigas.logging` |
 

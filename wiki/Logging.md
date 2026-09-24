@@ -121,16 +121,23 @@ from multigas.logging import enable_logging
 
 enable_logging()
 ds = read_file("data/site_a.dat", dataset_type="1min", verbose=True)
-# 2026-09-22 14:03:11 | INFO | multigas.data.loader:load:167 - Cache dir: output/cache
-# 2026-09-22 14:03:11 | INFO | multigas.data.loader:load:178 - Cache miss for data/site_a.dat...
-# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_load_csv:281 - Loaded from data/site_a.dat
-# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_normalize:311 - Normalizing data ...
-# 2026-09-22 14:03:12 | INFO | multigas.utils.cache:save_cache:116 - Cache saved to output/cache/....pkl.
+# 2026-09-22 14:03:11 | INFO | multigas.data.loader:load:182 - Cache dir: output/cache
+# 2026-09-22 14:03:11 | INFO | multigas.data.loader:load:193 - Cache miss for data/site_a.dat. Loading from source.
+# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_load_csv:319 - Loaded from data/site_a.dat
+# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_normalize:358 - Normalizing data ...
+# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_normalize:373 - Dropped 3 duplicate row(s).
+# 2026-09-22 14:03:12 | INFO | multigas.data.loader:_normalize:416 - Saved normalized file to output/normalized/site_a.csv
+# 2026-09-22 14:03:12 | INFO | multigas.utils.validation:check_sampling_consistency:90 - Total rows: 44640
+# ...
+# 2026-09-22 14:03:12 | INFO | multigas.utils.cache:save_cache:131 - Cache saved to output/cache/....pkl.
 ```
 
 `Query` operations (`select_numeric_columns`, `refresh`, `get`, …) share
 the same pattern — they emit `INFO` lines only when the wrapping
-`MultiGasData` (or the `Query` instance) has `verbose=True`.
+`MultiGasData` (or the `Query` instance) has `verbose=True`. The
+loader's `verbose` flag is **not** forwarded: a `MultiGasData` returned
+by `read_file` / `DataLoader.load` starts with `verbose=False`, so set
+`ds.verbose = True` yourself if you want `Query` log lines.
 
 ---
 
@@ -138,7 +145,7 @@ the same pattern — they emit `INFO` lines only when the wrapping
 
 Every `MultigasException` calls
 `logger.opt(depth=1, exception=True).log(self._log_level, message)` from
-its `__init__`. Two important consequences:
+its `__init__`. Three important consequences:
 
 1. **Do not add a manual `logger.error(...)` before `raise`.** The
    exception already logs itself, so a manual call produces a duplicate.

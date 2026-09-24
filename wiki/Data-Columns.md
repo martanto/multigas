@@ -38,8 +38,8 @@ the datalogger name they came from.
 
 | Column | Definition |
 |---|---|
-| `TIMESTAMP` | Timestamp from the datalogger's internal clock. This is the source column `multigas` converts into the `pd.DatetimeIndex` on every loaded frame. |
-| `RECORD` | Unique row number assigned by the datalogger to each observation in a data table. |
+| `TIMESTAMP` | Timestamp from the datalogger's internal clock. This is the source column `multigas` converts into the `pd.DatetimeIndex` on every loaded frame. During normalisation, rows sharing a `TIMESTAMP` are collapsed to the last one written. |
+| `RECORD` | Unique row number assigned by the datalogger to each observation in a data table. During normalisation, rows with a missing `RECORD` are dropped and the column is cast to `int`. |
 | `Site_Name` | Name of the multi-GAS instrument and / or its deployment location. |
 | `Duty_Cycle` | Number of hours between sample cycles, expressed as a number. |
 | `Status_Flag` | Numerical indicator of the operational state of the multi-GAS station. See [`SensorStatus`](API-Reference.md#sensorstatus) for the enum that names each code (e.g. `-1` = warming up, `1` = sample acquisition, `4` = span CO2 / SO2). |

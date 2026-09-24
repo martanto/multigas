@@ -40,7 +40,10 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 
 ```bash
 # Install uv package manager (one time, per machine)
-pip install uv
+# macOS / Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows (PowerShell):
+# powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 # Clone repository
 git clone https://github.com/martanto/multigas.git
@@ -113,6 +116,11 @@ ds = loader.load("data/site_a.dat", dataset_type="1min")
 Both entry points serve from an on-disk `joblib` cache keyed by absolute path
 plus mtime. Stale or corrupted entries are dropped transparently.
 
+With the default `normalize=True`, loading also replaces `"NAN"` sentinels
+with `NaN`, collapses duplicate timestamps (keeping the last row), coerces
+numeric columns, and — for sampling-interval datasets (`1s`, `2s`, `1min`,
+`6h`) — keeps only rows whose spacing matches the expected interval.
+
 Every parameter is documented in [`wiki/API-Reference.md`](wiki/API-Reference.md).
 
 ### Fluent queries
@@ -126,7 +134,7 @@ DataFrame in place; a pristine copy is kept in `df_original` and
 ds.select_numeric_columns().selected_columns
 # ['CO2', 'SO2', 'H2S', ...]
 
-ds.select_columns(["CO2", "SO2"]).df.head()
+ds.select_columns(["CO2", "SO2"]).get().head()
 
 ds.missing_columns   # columns with any NaN / empty value
 ds.empty_columns     # columns that are all-NaN, all-zero, or all-empty
@@ -314,6 +322,7 @@ Sink formats, the auto-log contract for exceptions, and the
 | `python-dotenv` | `.env` loading for `ENABLE_LOG` |
 | `python-slugify` | File-name-safe slugs for output paths |
 | `matplotlib` | Figure rendering (imported lazily by `multigas.plot`) |
+| `seaborn` | Scoped plot styling for `plot_completeness` |
 | `data-availability` | Daily-completeness chart used by `plot_completeness` |
 
 ---

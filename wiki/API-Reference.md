@@ -165,7 +165,40 @@ DataLoader.load(
 **Returns:** `MultiGasData`.
 
 **Raises:** `LoaderError` — invalid `dataset_type`, file missing, parse
-failure, or `index_col` missing.
+failure, `index_col` missing, or any error raised during normalisation /
+the sampling-consistency check (every failure inside the read →
+normalise → cache pipeline is re-raised as `LoaderError` with the
+original exception chained via `from e`).
+
+**Normalisation steps** (`normalize=True`, in order, inside `_normalize`):
+
+1. Replace the string sentinels `"NAN"`, `"NaN"`, `""` with `np.nan`.
+2. If a `RECORD` column exists, drop rows where it is missing and cast it
+   to `int`.
+3. Drop rows with a duplicated index (timestamp), keeping the **last**
+   occurrence — the most recent write wins. Logs the dropped count at
+   `INFO` when `verbose=True`.
+4. Coerce every object / string column to numeric, but only when *every*
+   non-null value converts — mixed text columns (e.g. `Site_Name`) are
+   left untouched.
+5. Optionally drop all-NaN columns (`drop_empty_columns=True`).
+6. Write a normalised copy to `<output_dir>/normalized/<source_stem>.csv`.
+   The write is skipped when that file already exists with an mtime at
+   least as new as the source.
+
+**Sampling-consistency filter.** After normalisation, when
+`dataset_type` is a sampling-interval member (`1s`, `2s`, `1min`, `6h`),
+the frame is passed through
+[`check_sampling_consistency`](#multigasutilsvalidation) with
+`expected_freq=dataset_type.value` and no tolerance, and **only the
+consistent rows are kept**. A row is inconsistent when its spacing from
+the previous row differs from the expected frequency — so the first row
+after every gap is dropped as well. `ZERO` / `SPAN` / `WX` streams skip
+this step. The filtered frame is what gets cached.
+
+The returned `MultiGasData` is built with the default `index_col`
+(`"TIMESTAMP"`) and `verbose=False`; the loader's `verbose` flag is not
+forwarded to the `Query` methods.
 
 **Cache flow:**
 
@@ -179,7 +212,10 @@ flowchart LR
     E --> F{normalize?}
     F -->|yes| H["_normalize()"]
     F -->|no| G
-    H --> I{use_cache?}
+    H --> K{sampling-interval<br/>DatasetType?}
+    K -->|yes| L["check_sampling_consistency()<br/>keep consistent rows"]
+    K -->|no| I
+    L --> I{use_cache?}
     I -->|yes| J["save_cache()"]
     I -->|no| G
     J --> G
@@ -217,12 +253,19 @@ and row filtering chain directly on the result.
 | `index_col` | `str` | `"TIMESTAMP"` | Column used as the datetime index. |
 | `verbose` | `bool` | `False` | Whether Query operations emit log messages. |
 
+Derived attributes set by `__init__`:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `basename` | `str` | `source_path.stem` — used in plot titles and default export file names. |
+| `basename_slug` | `str` | `slugify(basename)` — used as the directory / file-name segment by `extract_daily`, `to_csv`, and `to_excel`. |
+
 `__init__` delegates to `super().__init__(df, index_col, verbose)` (i.e.
 [`Query.__init__`](#query-mixin)), which promotes `index_col` to a
 `pd.DatetimeIndex`, stashes a pristine `df_original`, and computes
 `numeric_columns` and the `start_date` / `end_date` bounds. The
-`dataset_type` and `source_path` fields are assigned after the
-super-call.
+`dataset_type`, `source_path`, `basename`, and `basename_slug` are
+assigned after the super-call.
 
 #### `add_wind_direction`
 
@@ -278,14 +321,15 @@ if a finite bearing cannot be mapped to any quadrant.
 MultiGasData.to_csv(path: str | None = None) -> str
 ```
 
-Write the working DataFrame to a CSV file. When `path` is omitted, the
-file is written to `<cwd>/output/csv/<dataset_type>/<source_stem>.csv`.
+Write the working DataFrame (index included) to a CSV file. When `path`
+is omitted, the file is written to
+`<cwd>/output/csv/<source_slug>/<source_stem>.csv`.
 Any explicit `path` is used verbatim, with a `.csv` suffix appended when
 missing. The parent directory is created on demand.
 
 | Arg | Type | Default | Description |
 |---|---|---|---|
-| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/csv/<dataset_type>/` using the source file's stem. |
+| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/csv/<source_slug>/` using the source file's stem. |
 
 **Returns:** `str` — string representation of the written file path.
 
@@ -295,16 +339,16 @@ missing. The parent directory is created on demand.
 MultiGasData.to_excel(path: str | None = None) -> str
 ```
 
-Write the working DataFrame to an Excel (`.xlsx`) file. When `path` is
-omitted, the file is written to
-`<cwd>/output/excel/<dataset_type>/<source_stem>.xlsx`. Any explicit
+Write the working DataFrame (index included) to an Excel (`.xlsx`) file.
+When `path` is omitted, the file is written to
+`<cwd>/output/excel/<source_slug>/<source_stem>.xlsx`. Any explicit
 `path` is used verbatim, with a `.xlsx` suffix appended when missing.
 The parent directory is created on demand. Excel writing uses the
 `openpyxl` engine (a core runtime dependency).
 
 | Arg | Type | Default | Description |
 |---|---|---|---|
-| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/excel/<dataset_type>/` using the source file's stem. |
+| `path` | `str \| None` | `None` | Destination path. When `None`, the file is written under `<cwd>/output/excel/<source_slug>/` using the source file's stem. |
 
 **Returns:** `str` — string representation of the written file path.
 
@@ -404,7 +448,10 @@ Query(df: pd.DataFrame, index_col: str | None = None, verbose: bool = False)
 | `index_col` | `str \| None` | `None` (→ `"TIMESTAMP"`) | Column name to use as the datetime index. |
 | `verbose` | `bool` | `False` | Emit informational log messages for each operation. |
 
-**Raises:** `ValueError` — when the resulting DataFrame is empty.
+**Raises:** `ValidationError` — when `df` is empty, or when `index_col`
+cannot be parsed as datetimes; `ColumnError` — when `index_col` is
+missing and the frame has no `DatetimeIndex` yet (both via
+[`to_datetime_index`](#multigasutilsdataframe)).
 
 **Instance attributes:**
 
@@ -858,9 +905,9 @@ calls are no-ops.
 |---|---|---|
 | `get_cache_key` | `(file_path: Path \| str) -> str` | MD5 hex digest of `"<absolute_path>_<mtime>"` — changes automatically when the source is modified. |
 | `get_cache_path` | `(cache_dir: Path \| str, file_path: Path \| str) -> Path` | Resolve the `.pkl` cache path inside `cache_dir`. |
-| `save_cache` | `(df: pd.DataFrame, file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> None` | Serialise the DataFrame together with file metadata (`mtime`, `mtime_ns`, `size`, path). Raises `CacheError` on failure. |
-| `load_cache` | `(file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> pd.DataFrame \| None` | Load a cached DataFrame if the entry is still valid. Validates the stored `mtime_ns` + `size` (with a legacy `mtime` fallback) against the current source `stat()`; stale entries are deleted and `None` returned. Corrupted cache is a **soft failure** — the bad file is deleted, a `WARNING` is logged, and `None` is returned so the caller reloads from source. |
-| `clear_cache` | `(file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> None` | Delete every `*.pkl` file in `cache_dir`. The `file_path` arg is accepted for API symmetry but unused. |
+| `save_cache` | `(df: pd.DataFrame, file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> None` | Serialise the DataFrame together with file metadata (`mtime`, `mtime_ns`, `size`, path) via `joblib.dump(..., compress=3)`. Skips the write when the target `.pkl` already exists (the key already encodes the source mtime). Raises `CacheError` on failure. |
+| `load_cache` | `(file_path: Path \| str, cache_dir: Path \| str, verbose: bool = False) -> pd.DataFrame \| None` | Load a cached DataFrame if the entry is still valid. Validates the stored `mtime_ns` + `size` (with a legacy `mtime` fallback) against the current source `stat()`; stale entries are deleted and `None` returned (a `WARNING` is logged only when `verbose=True`). Corrupted cache is a **soft failure** — the bad file is deleted, a `WARNING` is logged, and `None` is returned so the caller reloads from source. |
+| `clear_cache` | `(cache_dir: Path \| str, verbose: bool = False) -> None` | Delete every `*.pkl` file in `cache_dir`. A file that cannot be deleted logs a `WARNING` and is skipped; the deleted count is logged at `INFO` when `verbose=True`. |
 
 ### `multigas.utils.validation`
 
@@ -895,8 +942,8 @@ calls are no-ops.
 ## Plotting (`multigas.plot`)
 
 Plotting helpers. Importing `multigas` does **not** import this
-subpackage (or matplotlib); `extract_daily` imports it lazily only when
-`plot=True`.
+subpackage (or matplotlib / seaborn); `extract_daily` imports it lazily
+only when `plot=True`.
 
 ### `plot_completeness`
 
@@ -914,9 +961,13 @@ Render a daily-completeness CSV (columns `date` as `YYYY-MM-DD` and
 `completeness` as a percentage in `[0, 100]` — the file written by
 [`extract_daily`](#extract_daily)) as a bar-style availability chart via
 the [`data-availability`](https://pypi.org/project/data-availability/)
-package, and save it next to the CSV with a `.png` suffix (150 dpi).
-The matplotlib figure is always closed after saving, so repeated calls
-don't accumulate open figures.
+package, and save it next to the CSV with a `.png` suffix (150 dpi,
+`bbox_inches="tight"`). Bars span the full day with no gap, and days
+absent from the CSV (the missing days `extract_daily` skips) are drawn
+in light grey (`#e0e0e0`). The seaborn `whitegrid` style is applied via
+a scoped `sns.axes_style(...)` context, so the caller's global
+matplotlib `rcParams` are left untouched. The figure is always closed
+after saving, so repeated calls don't accumulate open figures.
 
 Plotting is a secondary output, so failures are soft: any exception
 while reading, drawing, or saving is logged at `WARNING` and `None` is
