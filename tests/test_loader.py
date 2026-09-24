@@ -39,6 +39,20 @@ def test_normalize_preserves_non_numeric_text_columns() -> None:
     assert normalized["status"].tolist() == ["ok", "fail"]
 
 
+def test_normalize_drops_duplicate_timestamps_keeping_last() -> None:
+    loader = DataLoader()
+    index = pd.DatetimeIndex(
+        ["2025-01-01 00:00", "2025-01-01 00:01", "2025-01-01 00:01"],
+        name="TIMESTAMP",
+    )
+    raw = pd.DataFrame({"CO2": ["1.0", "2.0", "3.0"]}, index=index)
+
+    normalized = loader._normalize(raw)
+
+    assert normalized.index.is_unique
+    assert normalized["CO2"].tolist() == [1.0, 3.0]
+
+
 def test_load_cache_invalidates_on_size_mismatch(tmp_path) -> None:
     cache_dir = tmp_path / "cache"
     source_path = tmp_path / "source.csv"
