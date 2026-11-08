@@ -33,7 +33,7 @@ ENABLE_LOG=true uv run python your_script.py
 echo 'ENABLE_LOG=true' >> .env
 ```
 
-`multigas.logging` calls `load_dotenv(override=True)` at import time, so
+`multigas.logging` calls `load_dotenv(override=False)` at import time, so
 the `.env` file is picked up automatically.
 
 ---
@@ -178,7 +178,7 @@ See [`Exceptions`](Exceptions.md) for the full hierarchy.
 | `ENABLE_LOG` | anything else (default `"false"`) | No handlers registered; all `logger.*` calls are no-ops. |
 
 `multigas.logging` loads `.env` via `python-dotenv` with
-`load_dotenv(override=True)` — a value in `.env` overrides one already
+`load_dotenv(override=False)` — a value in `.env` does not override one already
 set in the shell. `enable_logging()` and `disable_logging()` also mutate
 `os.environ["ENABLE_LOG"]` so child processes (multiprocessing workers,
 joblib backends) inherit the parent's state.

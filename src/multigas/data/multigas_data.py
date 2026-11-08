@@ -12,16 +12,12 @@ Example:
     >>> ds.select_numeric_columns().df.head()
 """
 
-import os
-import json
 from typing import Self, Literal
 from pathlib import Path
 
 import pandas as pd
-from joblib import Parallel, delayed
 from slugify import slugify
 
-from multigas.logging import logger
 from multigas.core.query import Query
 from multigas.core.types import DatasetType, ExtractedStats
 from multigas.core.constant import (
@@ -32,8 +28,6 @@ from multigas.core.constant import (
     WIND_DIRECTIONS_16,
 )
 from multigas.utils.dataframe import (
-    count_csv_rows,
-    calculate_completeness,
     convert_to_wind_quadrant,
     convert_to_wind_direction,
 )
@@ -315,92 +309,9 @@ class MultiGasData(Query):
             >>> ds.extract_daily("exports/", overwrite=False)  # incremental
             >>> ds.extract_daily("exports/", plot=False)  # skip the PNG
         """
-        if output_dir is None:
-            output_dir = Path.cwd() / "output"
-        else:
-            output_dir = Path(output_dir)
+        from multigas.utils.daily import extract_daily
 
-        dataset_dir = output_dir / "daily" / self.dataset_type.label
-        daily_dir = dataset_dir / self.basename_slug
-        daily_dir.mkdir(parents=True, exist_ok=True)
-
-        df = self.df.copy()
-        dates = pd.date_range(
-            df.index.min().normalize(),
-            df.index.max().normalize(),
-            freq="D",
-        )
-
-        if n_jobs > 1:
-            max_jobs = max(1, (os.cpu_count() or 1) - 2)
-            n_jobs = min(n_jobs, max_jobs)
-
-        jobs = MultiGasData._build_jobs(dates, df, daily_dir, overwrite)
-
-        if n_jobs == 1:
-            results = [
-                MultiGasData._extract_one_day(
-                    date_str,
-                    df_daily,
-                    output_file,
-                    self.dataset_type,
-                    verbose=self.verbose,
-                    overwrite=job_overwrite,
-                )
-                for date_str, df_daily, output_file, job_overwrite in jobs
-            ]
-        else:
-            results = Parallel(n_jobs=n_jobs, backend="loky")(
-                delayed(MultiGasData._extract_one_day)(
-                    date_str,
-                    df_daily,
-                    output_file,
-                    self.dataset_type,
-                    verbose=self.verbose,
-                    overwrite=job_overwrite,
-                )
-                for date_str, df_daily, output_file, job_overwrite in jobs
-            )
-
-        skipped_count = sum(1 for _, _, _, job_overwrite in jobs if not job_overwrite)
-        if skipped_count > 0:
-            logger.info(f"Skipped {skipped_count} existing files under {daily_dir}")
-
-        extracted_files: list[ExtractedStats] = []
-        missing_dates: list[str] = []
-        for stats, is_missing in results:
-            if is_missing:
-                missing_dates.append(stats["date"])
-                continue
-            extracted_files.append(stats)
-
-        if missing_dates:
-            logger.warning(
-                f"Found {len(missing_dates)} missing dates for file {self.source_path}"
-            )
-            logger.warning(f"Missing files: {', '.join(missing_dates)}")
-
-        df_results = pd.DataFrame(extracted_files)
-        csv_filepath = dataset_dir / f"{self.basename_slug}-completeness.csv"
-        df_results.to_csv(csv_filepath, index=False)
-
-        if plot:
-            # Imported lazily so ``import multigas`` doesn't pull in matplotlib.
-            from multigas.plot.plot_completeness import plot_completeness
-
-            plot_completeness(
-                filepath=csv_filepath,
-                title=f"{self.basename} ({self.dataset_type.label})",
-                verbose=self.verbose,
-            )
-
-        if return_as_list:
-            json_path = dataset_dir / f"{self.basename_slug}.json"
-            with open(json_path, "w", encoding="utf-8") as file:
-                json.dump(extracted_files, file, indent=4, ensure_ascii=False)
-            return extracted_files
-
-        return df_results
+        return extract_daily(self.df, self.dataset_type, self.source_path, output_dir, return_as_list, n_jobs, overwrite, plot, self.verbose)
 
     @staticmethod
     def _build_jobs(
@@ -455,16 +366,9 @@ class MultiGasData(Query):
             >>> jobs[0][0]
             '2024-01-01'
         """
-        jobs: list[tuple[str, pd.DataFrame, Path, bool]] = []
-        for date in dates:
-            date_str = date.strftime("%Y-%m-%d")
-            output_file = daily_dir / f"{date_str}.csv"
-            if not overwrite and output_file.exists():
-                jobs.append((date_str, pd.DataFrame(), output_file, False))
-            else:
-                df_daily = df.loc[date_str:date_str]
-                jobs.append((date_str, df_daily, output_file, True))
-        return jobs
+        from multigas.utils.daily import build_jobs
+
+        return build_jobs(dates, df, daily_dir, overwrite)
 
     @staticmethod
     def _extract_one_day(
@@ -520,50 +424,9 @@ class MultiGasData(Query):
             ... )
             (ExtractedStats(date='2024-01-01', total_data=1440, ...), False)
         """
-        if not overwrite:
-            if verbose:
-                logger.info(
-                    f"{date_str} :: Already exists, reading stats from: {output_file}"
-                )
-            total_data = count_csv_rows(output_file)
-            return (
-                ExtractedStats(
-                    date=date_str,
-                    total_data=total_data,
-                    completeness=calculate_completeness(
-                        total_data,
-                        dataset_type,
-                        as_percentage=True,
-                    ),
-                ),
-                False,
-            )
+        from multigas.utils.daily import extract_one_day
 
-        if verbose:
-            logger.info(f"{date_str} :: Extracting ...")
-
-        if df_daily.empty:
-            return (
-                ExtractedStats(date=date_str, total_data=0, completeness=0.0),
-                True,
-            )
-
-        total_data = len(df_daily)
-        stats = ExtractedStats(
-            date=date_str,
-            total_data=total_data,
-            completeness=calculate_completeness(
-                total_data,
-                dataset_type,
-                as_percentage=True,
-            ),
-        )
-        df_daily.to_csv(output_file, index=True)
-
-        if verbose:
-            logger.info(f"{date_str} :: Extracted to: {output_file}")
-
-        return stats, False
+        return extract_one_day(date_str, df_daily, output_file, dataset_type, verbose, overwrite)
 
     def to_csv(self, path: str | None = None) -> str:
         """Write the working DataFrame to a CSV file.

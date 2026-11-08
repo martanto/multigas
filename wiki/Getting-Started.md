@@ -1,5 +1,18 @@
 # Getting Started
 
+For first-time dashboard configuration, copy `.env.example` to `.env` in the
+repository root. Keep existing local settings when upgrading. See
+[environment variables](Dashboard.md#run) for all defaults and precedence.
+
+For the local React/shadcn dashboard, persistent imports, daily analysis, and
+downloads, follow [Dashboard](Dashboard.md). Run `uv sync --extra api` first.
+`uv run --extra api main.py` uses the explicit Tangkuban Parahu `2s` example
+and plots all source observations as scatter without downsampling; the example
+defaults to no normalization exclusions. See [Scientific Plotting](Scientific-Plotting.md)
+for independent PNG/PDF/SVG rendering. Package file loading now resolves
+case-only timestamp aliases and uses the canonical datetime converter; invalid
+or missing timestamp values raise `ValidationError` rather than becoming `NaT`.
+
 A first-run guide for the `multigas` package: install it, load a file, and
 run a few queries against the result.
 

@@ -152,7 +152,7 @@ class DatasetType(StrEnum):
         """
         _totals: dict[str, int] = {
             "1s": 86400,
-            "2s": 5760,
+            "2s": 43200,
             "1min": 1440,
             "6h": 4,
             "zero": 4,

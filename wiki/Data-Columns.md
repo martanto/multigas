@@ -1,5 +1,15 @@
 # Data Columns
 
+The two-second `TANG_RTU_ChemData_Sec2.dat` stream uses additional direct channel
+names: `CO2_lowpass`, `SO2`, `H2S`, `H2O`, slash-separated
+`*_ratio_3min` channels, and `SO2/S_total_3min` / `H2S/S_total_3min`.
+Its TOA5 header declares concentration units as `ppmv` (including H₂O), and
+both sulfur proportions as `%`. These units are read from the file, not inferred
+from observed magnitudes. Shared aliases map these channels to the dashboard's
+panel definitions while preserving originals; see
+[Scientific Plotting](Scientific-Plotting.md#panel-order). CO₂/H₂S is available
+onboard in this stream and is preferred over an instantaneous calculated ratio.
+
 Reference for the column names that appear in a Campbell Scientific
 multi-GAS TOA5 / CSV file loaded through `multigas`. Each row defines
 one column as recorded by the datalogger — what the value represents,

@@ -50,7 +50,8 @@ lint = [
     "ty",
 ]
 test = [
-  "pytest"
+  "httpx>=0.28.1",
+  "pytest",
 ]
 
 [tool.uv]
@@ -59,3 +60,13 @@ cache-dir = "./.cache/uv"
 [project.urls]
 Homepage = "https://github.com/martanto/multigas"
 Issues = "https://github.com/martanto/multigas/issues"
+
+[project.optional-dependencies]
+api = [
+    "duckdb>=2.0.0",
+    "fastapi>=0.162.2",
+    "pyarrow>=26.0.1",
+    "python-multipart>=0.0.33",
+    "pytz>=2026.6",
+    "uvicorn>=0.54.0",
+]

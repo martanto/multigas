@@ -43,7 +43,7 @@ _CONSOLE_FORMAT = (
     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 )
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 logger.remove()
 
