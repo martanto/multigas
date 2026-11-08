@@ -31,12 +31,15 @@ from multigas.core.exceptions import ValidationError
 from multigas.utils.validation import validate_dataframe_column
 
 
-def to_datetime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
+def to_datetime_index(
+    df: pd.DataFrame, index_col: str, *, utc: bool = False
+) -> pd.DataFrame:
     """Convert a column to pd.DatetimeIndex and set it as the DataFrame index.
 
     Args:
         df (pd.DataFrame): DataFrame containing the column to convert.
         index_col (str): Name of the column to use as the datetime index.
+        utc (bool): Interpret naive timestamps as UTC and convert aware values.
 
     Returns:
         pd.DataFrame: DataFrame sorted ascending with a pd.DatetimeIndex.
@@ -54,17 +57,25 @@ def to_datetime_index(df: pd.DataFrame, index_col: str) -> pd.DataFrame:
         True
     """
     if isinstance(df.index, pd.DatetimeIndex):
-        return df
+        if df.index.hasnans:
+            raise ValidationError("DatetimeIndex contains missing timestamps")
+        if utc:
+            df = df.copy()
+            index = pd.DatetimeIndex(df.index)
+            df.index = index.tz_localize("UTC") if index.tz is None else index.tz_convert("UTC")
+        return df.sort_index(ascending=True, kind="stable")
 
     validate_dataframe_column(df, index_col)
     df = df.set_index(index_col)
     try:
-        df.index = pd.to_datetime(df.index)
+        df.index = pd.to_datetime(df.index, utc=utc, format="mixed")
     except (ValueError, TypeError, pd.errors.ParserError) as e:
         raise ValidationError(
             f"Failed to convert column {index_col!r} to a DatetimeIndex: {e}"
         ) from e
-    df = df.sort_index(ascending=True)
+    if pd.DatetimeIndex(df.index).hasnans:
+        raise ValidationError(f"Column {index_col!r} contains missing timestamps")
+    df = df.sort_index(ascending=True, kind="stable")
     return df
 
 

@@ -129,6 +129,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -191,3 +193,19 @@ changelogs/
 *.ipynb
 /.agents
 /.github
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Local dashboard dependencies; keep shared frontend source visible.
+node_modules/
+!frontend/src/lib/
+!frontend/src/lib/**
+!tests/summary-reference.png
+tests/pytest-temp/
+tests/playwright-results/
+frontend/*.tsbuildinfo
+tests/browser-storage/
+tests/tangkuban-example/
+tests/benchmark-storage/
+tests/e2e-storage/
+.tmp/

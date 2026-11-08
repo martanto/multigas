@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-08T14:15:00Z",
+  "title": "Design System: MultiGas workspace",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Primary",
+        "tonalRamp": [
+          "oklch(15.0% 0.0252 171.32)",
+          "oklch(25.0% 0.0419 171.32)",
+          "oklch(36.0% 0.0604 171.32)",
+          "oklch(48.0% 0.0755 171.32)",
+          "oklch(60.0% 0.0755 171.32)",
+          "oklch(72.0% 0.0755 171.32)",
+          "oklch(84.0% 0.0604 171.32)",
+          "oklch(95.0% 0.0189 171.32)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "neutral",
+        "displayName": "Primary Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0000 89.88)",
+          "oklch(25.0% 0.0000 89.88)",
+          "oklch(36.0% 0.0000 89.88)",
+          "oklch(48.0% 0.0000 89.88)",
+          "oklch(60.0% 0.0000 89.88)",
+          "oklch(72.0% 0.0000 89.88)",
+          "oklch(84.0% 0.0000 89.88)",
+          "oklch(95.0% 0.0000 89.88)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Background",
+        "tonalRamp": [
+          "oklch(15.0% 0.0015 134.85)",
+          "oklch(25.0% 0.0025 134.85)",
+          "oklch(36.0% 0.0036 134.85)",
+          "oklch(48.0% 0.0045 134.85)",
+          "oklch(60.0% 0.0045 134.85)",
+          "oklch(72.0% 0.0045 134.85)",
+          "oklch(84.0% 0.0036 134.85)",
+          "oklch(95.0% 0.0011 134.85)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0094 180.85)",
+          "oklch(25.0% 0.0156 180.85)",
+          "oklch(36.0% 0.0224 180.85)",
+          "oklch(48.0% 0.0281 180.85)",
+          "oklch(60.0% 0.0281 180.85)",
+          "oklch(72.0% 0.0281 180.85)",
+          "oklch(84.0% 0.0224 180.85)",
+          "oklch(95.0% 0.0070 180.85)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card",
+        "tonalRamp": [
+          "oklch(15.0% 0.0000 89.88)",
+          "oklch(25.0% 0.0000 89.88)",
+          "oklch(36.0% 0.0000 89.88)",
+          "oklch(48.0% 0.0000 89.88)",
+          "oklch(60.0% 0.0000 89.88)",
+          "oklch(72.0% 0.0000 89.88)",
+          "oklch(84.0% 0.0000 89.88)",
+          "oklch(95.0% 0.0000 89.88)"
+        ]
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Secondary",
+        "tonalRamp": [
+          "oklch(15.0% 0.0044 159.91)",
+          "oklch(25.0% 0.0074 159.91)",
+          "oklch(36.0% 0.0106 159.91)",
+          "oklch(48.0% 0.0133 159.91)",
+          "oklch(60.0% 0.0133 159.91)",
+          "oklch(72.0% 0.0133 159.91)",
+          "oklch(84.0% 0.0106 159.91)",
+          "oklch(95.0% 0.0033 159.91)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "tonalRamp": [
+          "oklch(15.0% 0.0017 145.54)",
+          "oklch(25.0% 0.0028 145.54)",
+          "oklch(36.0% 0.0041 145.54)",
+          "oklch(48.0% 0.0051 145.54)",
+          "oklch(60.0% 0.0051 145.54)",
+          "oklch(72.0% 0.0051 145.54)",
+          "oklch(84.0% 0.0041 145.54)",
+          "oklch(95.0% 0.0013 145.54)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0090 169.03)",
+          "oklch(25.0% 0.0150 169.03)",
+          "oklch(36.0% 0.0216 169.03)",
+          "oklch(48.0% 0.0270 169.03)",
+          "oklch(60.0% 0.0270 169.03)",
+          "oklch(72.0% 0.0270 169.03)",
+          "oklch(84.0% 0.0216 169.03)",
+          "oklch(95.0% 0.0068 169.03)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Border",
+        "tonalRamp": [
+          "oklch(15.0% 0.0036 158.82)",
+          "oklch(25.0% 0.0061 158.82)",
+          "oklch(36.0% 0.0087 158.82)",
+          "oklch(48.0% 0.0109 158.82)",
+          "oklch(60.0% 0.0109 158.82)",
+          "oklch(72.0% 0.0109 158.82)",
+          "oklch(84.0% 0.0087 158.82)",
+          "oklch(95.0% 0.0027 158.82)"
+        ]
+      },
+      "destructive": {
+        "role": "neutral",
+        "displayName": "Destructive",
+        "tonalRamp": [
+          "oklch(15.0% 0.0487 26.12)",
+          "oklch(25.0% 0.0811 26.12)",
+          "oklch(36.0% 0.1168 26.12)",
+          "oklch(48.0% 0.1460 26.12)",
+          "oklch(60.0% 0.1460 26.12)",
+          "oklch(72.0% 0.1460 26.12)",
+          "oklch(84.0% 0.1168 26.12)",
+          "oklch(95.0% 0.0365 26.12)"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail",
+        "tonalRamp": [
+          "oklch(15.0% 0.0148 179.20)",
+          "oklch(25.0% 0.0246 179.20)",
+          "oklch(36.0% 0.0355 179.20)",
+          "oklch(48.0% 0.0443 179.20)",
+          "oklch(60.0% 0.0443 179.20)",
+          "oklch(72.0% 0.0443 179.20)",
+          "oklch(84.0% 0.0355 179.20)",
+          "oklch(95.0% 0.0111 179.20)"
+        ]
+      },
+      "rail-text": {
+        "role": "neutral",
+        "displayName": "Rail Text",
+        "tonalRamp": [
+          "oklch(15.0% 0.0040 170.26)",
+          "oklch(25.0% 0.0066 170.26)",
+          "oklch(36.0% 0.0095 170.26)",
+          "oklch(48.0% 0.0119 170.26)",
+          "oklch(60.0% 0.0119 170.26)",
+          "oklch(72.0% 0.0119 170.26)",
+          "oklch(84.0% 0.0095 170.26)",
+          "oklch(95.0% 0.0030 170.26)"
+        ]
+      },
+      "dark-background": {
+        "role": "neutral",
+        "displayName": "Dark Background",
+        "tonalRamp": [
+          "oklch(15.0% 0.0056 175.94)",
+          "oklch(25.0% 0.0094 175.94)",
+          "oklch(36.0% 0.0135 175.94)",
+          "oklch(48.0% 0.0168 175.94)",
+          "oklch(60.0% 0.0168 175.94)",
+          "oklch(72.0% 0.0168 175.94)",
+          "oklch(84.0% 0.0135 175.94)",
+          "oklch(95.0% 0.0042 175.94)"
+        ]
+      },
+      "dark-foreground": {
+        "role": "neutral",
+        "displayName": "Dark Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0036 158.84)",
+          "oklch(25.0% 0.0060 158.84)",
+          "oklch(36.0% 0.0086 158.84)",
+          "oklch(48.0% 0.0108 158.84)",
+          "oklch(60.0% 0.0108 158.84)",
+          "oklch(72.0% 0.0108 158.84)",
+          "oklch(84.0% 0.0086 158.84)",
+          "oklch(95.0% 0.0027 158.84)"
+        ]
+      },
+      "dark-card": {
+        "role": "neutral",
+        "displayName": "Dark Card",
+        "tonalRamp": [
+          "oklch(15.0% 0.0075 171.87)",
+          "oklch(25.0% 0.0124 171.87)",
+          "oklch(36.0% 0.0179 171.87)",
+          "oklch(48.0% 0.0224 171.87)",
+          "oklch(60.0% 0.0224 171.87)",
+          "oklch(72.0% 0.0224 171.87)",
+          "oklch(84.0% 0.0179 171.87)",
+          "oklch(95.0% 0.0056 171.87)"
+        ]
+      },
+      "dark-primary": {
+        "role": "primary",
+        "displayName": "Dark Primary",
+        "tonalRamp": [
+          "oklch(15.0% 0.0264 167.47)",
+          "oklch(25.0% 0.0440 167.47)",
+          "oklch(36.0% 0.0634 167.47)",
+          "oklch(48.0% 0.0793 167.47)",
+          "oklch(60.0% 0.0793 167.47)",
+          "oklch(72.0% 0.0793 167.47)",
+          "oklch(84.0% 0.0634 167.47)",
+          "oklch(95.0% 0.0198 167.47)"
+        ]
+      },
+      "dark-primary-foreground": {
+        "role": "neutral",
+        "displayName": "Dark Primary Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0122 165.83)",
+          "oklch(25.0% 0.0204 165.83)",
+          "oklch(36.0% 0.0293 165.83)",
+          "oklch(48.0% 0.0367 165.83)",
+          "oklch(60.0% 0.0367 165.83)",
+          "oklch(72.0% 0.0367 165.83)",
+          "oklch(84.0% 0.0293 165.83)",
+          "oklch(95.0% 0.0092 165.83)"
+        ]
+      },
+      "dark-secondary": {
+        "role": "neutral",
+        "displayName": "Dark Secondary",
+        "tonalRamp": [
+          "oklch(15.0% 0.0110 164.64)",
+          "oklch(25.0% 0.0183 164.64)",
+          "oklch(36.0% 0.0263 164.64)",
+          "oklch(48.0% 0.0329 164.64)",
+          "oklch(60.0% 0.0329 164.64)",
+          "oklch(72.0% 0.0329 164.64)",
+          "oklch(84.0% 0.0263 164.64)",
+          "oklch(95.0% 0.0082 164.64)"
+        ]
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "Dark Muted",
+        "tonalRamp": [
+          "oklch(15.0% 0.0085 167.43)",
+          "oklch(25.0% 0.0142 167.43)",
+          "oklch(36.0% 0.0204 167.43)",
+          "oklch(48.0% 0.0255 167.43)",
+          "oklch(60.0% 0.0255 167.43)",
+          "oklch(72.0% 0.0255 167.43)",
+          "oklch(84.0% 0.0204 167.43)",
+          "oklch(95.0% 0.0064 167.43)"
+        ]
+      },
+      "dark-muted-foreground": {
+        "role": "neutral",
+        "displayName": "Dark Muted Foreground",
+        "tonalRamp": [
+          "oklch(15.0% 0.0086 160.42)",
+          "oklch(25.0% 0.0144 160.42)",
+          "oklch(36.0% 0.0207 160.42)",
+          "oklch(48.0% 0.0259 160.42)",
+          "oklch(60.0% 0.0259 160.42)",
+          "oklch(72.0% 0.0259 160.42)",
+          "oklch(84.0% 0.0207 160.42)",
+          "oklch(95.0% 0.0065 160.42)"
+        ]
+      },
+      "dark-border": {
+        "role": "neutral",
+        "displayName": "Dark Border",
+        "tonalRamp": [
+          "oklch(15.0% 0.0097 161.79)",
+          "oklch(25.0% 0.0162 161.79)",
+          "oklch(36.0% 0.0233 161.79)",
+          "oklch(48.0% 0.0291 161.79)",
+          "oklch(60.0% 0.0291 161.79)",
+          "oklch(72.0% 0.0291 161.79)",
+          "oklch(84.0% 0.0233 161.79)",
+          "oklch(95.0% 0.0073 161.79)"
+        ]
+      },
+      "dark-destructive": {
+        "role": "neutral",
+        "displayName": "Dark Destructive",
+        "tonalRamp": [
+          "oklch(15.0% 0.0310 27.34)",
+          "oklch(25.0% 0.0517 27.34)",
+          "oklch(36.0% 0.0745 27.34)",
+          "oklch(48.0% 0.0931 27.34)",
+          "oklch(60.0% 0.0931 27.34)",
+          "oklch(72.0% 0.0931 27.34)",
+          "oklch(84.0% 0.0745 27.34)",
+          "oklch(95.0% 0.0233 27.34)"
+        ]
+      },
+      "dark-rail": {
+        "role": "neutral",
+        "displayName": "Dark Rail",
+        "tonalRamp": [
+          "oklch(15.0% 0.0119 174.25)",
+          "oklch(25.0% 0.0199 174.25)",
+          "oklch(36.0% 0.0287 174.25)",
+          "oklch(48.0% 0.0358 174.25)",
+          "oklch(60.0% 0.0358 174.25)",
+          "oklch(72.0% 0.0358 174.25)",
+          "oklch(84.0% 0.0287 174.25)",
+          "oklch(95.0% 0.0090 174.25)"
+        ]
+      },
+      "sulfur-orange": {
+        "role": "secondary",
+        "displayName": "Sulfur Orange",
+        "tonalRamp": [
+          "oklch(15.0% 0.0409 59.11)",
+          "oklch(25.0% 0.0681 59.11)",
+          "oklch(36.0% 0.0981 59.11)",
+          "oklch(48.0% 0.1226 59.11)",
+          "oklch(60.0% 0.1226 59.11)",
+          "oklch(72.0% 0.1226 59.11)",
+          "oklch(84.0% 0.0981 59.11)",
+          "oklch(95.0% 0.0306 59.11)"
+        ]
+      },
+      "sulfide-violet": {
+        "role": "secondary",
+        "displayName": "Sulfide Violet",
+        "tonalRamp": [
+          "oklch(15.0% 0.0327 304.36)",
+          "oklch(25.0% 0.0545 304.36)",
+          "oklch(36.0% 0.0785 304.36)",
+          "oklch(48.0% 0.0981 304.36)",
+          "oklch(60.0% 0.0981 304.36)",
+          "oklch(72.0% 0.0981 304.36)",
+          "oklch(84.0% 0.0785 304.36)",
+          "oklch(95.0% 0.0245 304.36)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "metric": {
+        "displayName": "Measurement",
+        "purpose": "Tabular scientific summary values."
+      }
+    },
+    "shadows": [
+      {
+        "name": "control-xs",
+        "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "purpose": "Inputs and outline buttons."
+      },
+      {
+        "name": "card-sm",
+        "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "purpose": "Coverage card."
+      },
+      {
+        "name": "dialog-lg",
+        "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+        "purpose": "Modal content."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Inherited Tailwind control transitions; suppressed for reduced motion."
+      },
+      {
+        "name": "dialog-duration",
+        "value": "200ms",
+        "purpose": "Dialog state transition duration."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary workflow action.",
+      "html": "<button class=\"ds-primary\">Import dataset</button>",
+      "css": ".ds-primary{font-family:\"Segoe UI\",sans-serif;font-size:.875rem;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.25rem;padding:.5rem 1rem;border-radius:.375rem;cursor:pointer;transition:all .15s;border:0;background:var(--primary);color:var(--primary-foreground)}.ds-primary:hover{background:color-mix(in srgb,var(--primary) 90%,transparent)}.ds-primary:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}.ds-primary:disabled{opacity:.5;pointer-events:none}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action with a thin border.",
+      "html": "<button class=\"ds-outline\">Save view</button>",
+      "css": ".ds-outline{font-family:\"Segoe UI\",sans-serif;font-size:.875rem;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.25rem;padding:.5rem 1rem;border-radius:.375rem;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--background);color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}.ds-outline:hover{background:var(--secondary)}.ds-outline:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet navigation action.",
+      "html": "<button class=\"ds-ghost\">Previous day</button>",
+      "css": ".ds-ghost{font-family:\"Segoe UI\",sans-serif;font-size:.875rem;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.25rem;padding:.5rem 1rem;border-radius:.375rem;cursor:pointer;transition:all .15s;border:0;background:transparent;color:var(--foreground)}.ds-ghost:hover{background:var(--secondary)}.ds-ghost:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled field with a visible keyboard focus state.",
+      "html": "<label class=\"ds-field\">View name<input class=\"ds-input\" placeholder=\"January analysis\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:.375rem;font: .8125rem \"Segoe UI\",sans-serif;color:var(--foreground)}.ds-input{height:2.25rem;min-width:0;border:1px solid var(--border);border-radius:.375rem;background:var(--card);color:var(--foreground);padding:.5rem .625rem;box-shadow:0 1px 2px 0 rgb(0 0 0 / .05);font:inherit;transition:color .15s,box-shadow .15s}.ds-input:hover{border-color:var(--border)}.ds-input:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Station Navigation",
+      "kind": "nav",
+      "refersTo": "surface",
+      "description": "Persistent station selection on the forest rail.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-nav\" aria-current=\"true\">Tangkuban station</button></nav>",
+      "css": ".ds-rail{padding:1rem;background:var(--rail);color:var(--rail-text)}.ds-nav{display:flex;width:100%;padding:.65rem .75rem;border:0;border-radius:.375rem;text-align:left;background:transparent;color:inherit;font:.875rem \"Segoe UI\",sans-serif}.ds-nav[aria-current=\"true\"],.ds-nav:hover{background:#ffffff16}.ds-nav:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Secondary Badge",
+      "kind": "chip",
+      "refersTo": "badge-secondary",
+      "description": "Compact status or count label.",
+      "html": "<span class=\"ds-badge\">Onboard ratios</span>",
+      "css": ".ds-badge{display:inline-flex;padding:.125rem .5rem;border:1px solid transparent;border-radius:9999px;background:var(--secondary);color:var(--foreground);font:500 .75rem/1rem \"Segoe UI\",sans-serif}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Coverage Card",
+      "kind": "card",
+      "refersTo": "coverage-card",
+      "description": "The shadcn card used for daily coverage.",
+      "html": "<section class=\"ds-card\"><h2>Daily coverage</h2><p>Record coverage before analysis filters.</p></section>",
+      "css": ".ds-card{padding:1rem;border:1px solid var(--border);border-radius:.75rem;background:var(--card);color:var(--foreground);box-shadow:0 1px 3px 0 rgb(0 0 0 / .1),0 1px 2px -1px rgb(0 0 0 / .1);font-family:\"Segoe UI\",sans-serif}.ds-card h2{font-size:1rem;font-weight:650;margin:0}.ds-card p{font-size:.75rem;line-height:1rem;color:var(--muted-foreground)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    },
+    {
+      "name": "Selected Calendar Day",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Day and coverage value with an explicit selected state.",
+      "html": "<button class=\"ds-day\" aria-pressed=\"true\" aria-label=\"January 2: 25 percent coverage\">2<span>25%</span></button>",
+      "css": ".ds-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.125rem;min-height:2.5rem;width:2.5rem;border:1px solid var(--primary);border-radius:.25rem;background:var(--primary);color:var(--primary-foreground);font:.75rem \"Segoe UI\",sans-serif;cursor:pointer}.ds-day span{font-size:.5625rem}.ds-day:hover{filter:brightness(.97)}.ds-day:focus-visible{outline:2px solid var(--primary);outline-offset:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 50%,transparent)}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Botanical Field Atlas",
+    "overview": "Forest navigation, pale paper surfaces, and quiet dividers frame dense scientific observations. The workspace prioritizes readable measurements, familiar controls, and clear selections. Its botanical character comes from its palette rather than decorative illustration.\n\nThe implementation combines custom analysis surfaces with shadcn primitives. Light and dark themes preserve semantic roles; scientific figures remain white independently of the application theme.",
+    "keyCharacteristics": [
+      "Forest navigation and restrained green selection.",
+      "Compact summaries with tabular measurements.",
+      "Bordered analysis surfaces and familiar form controls.",
+      "UTC labels, explicit units, and textual coverage signals."
+    ],
+    "rules": [
+      {
+        "name": "The Explicit Signal Rule",
+        "body": "Pair coverage color with percentages, missing-value marks, accessible labels, and a selection legend.",
+        "section": "colors"
+      },
+      {
+        "name": "The Quiet Depth Rule",
+        "body": "Keep data panels legible through borders and spacing; reserve pronounced depth for modal content.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** preserve semantic theme roles and scientific channel colors.",
+      "**Do** keep units, UTC context, and missing-channel messages explicit.",
+      "**Do** retain all observations and the full dataset as the initial range.",
+      "**Do** use visible labels, SVG icons, and keyboard focus states."
+    ],
+    "donts": [
+      "**Don't** use coverage color as the sole signal.",
+      "**Don't** let analysis filters redefine immutable coverage.",
+      "**Don't** apply application dark backgrounds to exported scientific figures.",
+      "**Don't** treat unused eyebrow styling or system-font display headings as a new reusable visual rule."
+    ]
+  }
+}

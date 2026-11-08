@@ -25,6 +25,8 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 | [Wind Analysis](wiki/Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](wiki/Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](wiki/Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
+| [Dashboard](wiki/Dashboard.md) | Local app, persistent imports, daily navigation, saved views, exports, and API |
+| [Scientific Plotting](wiki/Scientific-Plotting.md) | Full-resolution ten-panel scatter figures, units, ratios, and PNG/PDF/SVG |
 
 ---
 
@@ -81,6 +83,39 @@ Full walkthrough: [`wiki/Getting-Started.md`](wiki/Getting-Started.md).
 ---
 
 ## Quick start
+
+### Local scientific dashboard
+
+Copy [`.env.example`](.env.example) to `.env` for first-time configuration.
+It documents persistent storage, upload limits, DuckDB memory, the Vite API
+proxy, static hosting, logging, and the `main.py` example path. Existing process
+environment variables take precedence over `.env`; explicit arguments take
+precedence over both. Restart the API and Vite after changing settings.
+
+Install the optional application dependencies with `uv sync --extra api`, then run:
+
+```powershell
+uv run --extra api uvicorn multigas.api.app:create_app --factory --host 127.0.0.1 --port 8001 --workers 1
+```
+
+In a second terminal, run `cd frontend`, `npm ci`, and `npm run dev`. Open
+`http://127.0.0.1:5173`. Import a CSV/TOA5 file, confirm its units and acquisition
+mode, explore daily coverage, and save or export an analysis. The React frontend
+uses Tailwind v4, CLI-generated shadcn/ui components, and ECharts scatter plots.
+Every observation in the selected range is plotted, without downsampling;
+the initial view spans the entire dataset. Storage persists in `output/app`.
+
+`uv run --extra api main.py` imports the Tangkuban Parahu two-second example at
+`D:\Data\Multigas Tangkuban Parahu\TANG_RTU\TANG_RTU_ChemData_Sec2.dat` and exports
+a full-range, full-resolution scatter summary. The original is preserved.
+Normalization is opt-in for this example (`--normalize`); `--no-figure` imports
+only. Two-second coverage expects **43,200 records per day**.
+
+See [Dashboard](wiki/Dashboard.md) for configuration, API, verification, and
+storage details, and [Scientific Plotting](wiki/Scientific-Plotting.md) for the
+independent `multigas.plot.plot_timeseries` renderer.
+
+### Python package
 
 Load a Campbell Scientific TOA5 (or plain CSV) file and get a `MultiGasData`
 back — a DataFrame wrapper with fluent column-selection helpers.

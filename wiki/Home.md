@@ -20,6 +20,8 @@ dataloggers. Every dataset flowing through the package is inherently
 | [Wind Analysis](Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
+| [Dashboard](Dashboard.md) | Local app, persistent imports/jobs/views, UTC daily analysis, exports, and API |
+| [Scientific Plotting](Scientific-Plotting.md) | Full-resolution ten-panel scatter renderer, units, formulas, and formats |
 
 > Additional pages (e.g. `Data-Loading.md`, `Query-API.md`,
 > `Caching.md`, `Contributing.md`) will be added as the packages /
@@ -69,6 +71,14 @@ multigas/
 ---
 
 ## Package Architecture
+
+The optional local application adds `multigas.api` (factory, schemas, routes),
+SQLite metadata/jobs/views, immutable daily Parquet storage, and React/Vite in
+`frontend/`. Reusable application logic lives in `multigas.utils.app_*`;
+`utils.analysis` supplies shared scientific definitions, and `utils.daily`
+implements the existing `extract_daily` contract. The public
+`multigas.plot.plot_timeseries` renderer plots all observations as scatter.
+See [Dashboard](Dashboard.md) and [Scientific Plotting](Scientific-Plotting.md).
 
 ```mermaid
 flowchart TD
@@ -138,6 +148,9 @@ ds = loader.load("data/site_a.dat", dataset_type="1min")
 ---
 
 ## Common Commands
+
+The repository-root `.env.example` documents local application environment
+settings. Copy it to `.env` on first setup; see [Dashboard](Dashboard.md#run).
 
 ```bash
 uv sync                                     # install deps (including dev)

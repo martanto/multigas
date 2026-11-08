@@ -306,14 +306,13 @@ class DataLoader:
                 low_memory=False,
             )
 
-        # Promote the requested column to the DataFrame index (required).
-        try:
-            df[index_col] = pd.to_datetime(df[index_col], errors="coerce")
-            df = df.set_index(index_col)
-        except KeyError as e:
-            raise LoaderError(
-                f"Index column {index_col!r} not found in {file_path}."
-            ) from e
+        # Accept case-only timestamp aliases, then use the canonical converter.
+        aliases = [c for c in df.columns if c.casefold() == index_col.casefold()]
+        if len(aliases) == 1:
+            df = df.rename(columns={aliases[0]: index_col})
+        from multigas.utils.dataframe import to_datetime_index
+
+        df = to_datetime_index(df, index_col)
 
         if self.verbose:
             logger.info(f"Loaded from {file_path}")

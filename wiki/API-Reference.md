@@ -1,5 +1,44 @@
 # API Reference
 
+## Local application and scientific scatter API
+
+See [Dashboard](Dashboard.md#versioned-api) for `/api/v1` endpoints and
+`/docs` on the running local API for generated request schemas. Public package
+plotting remains independent of the optional FastAPI dependencies.
+
+```python
+plot_timeseries(
+    df, destination, *, preset="multigas-summary", panels=None,
+    units=None, ratio_source="onboard", format=None, width=10, height=16,
+    dpi=300, start=None, end=None, y_limits=None,
+) -> Path
+```
+
+Import from `multigas.plot`. `df` must have a DatetimeIndex. Every finite
+observation is drawn as scatter, without reduction. `panels` is an ordered
+subset of the [shared panel IDs](Scientific-Plotting.md#panel-order). `units`
+maps confirmed source columns to unit strings; `ratio_source` is `onboard` or
+`calculated`. `destination` is an explicitly requested output path; `format`
+is PNG, PDF, SVG, or inferred from its suffix. Dimensions are inches. Date
+bounds are inclusive UTC timestamps. `y_limits` maps panel IDs to `(min,max)`.
+Returns the output `Path`; raises `PlotError` for invalid inputs, an empty
+usable selection, or export failure. Missing panels are annotated. Full
+semantics, aliases, conversions, and formulas: [Scientific Plotting](Scientific-Plotting.md).
+
+`to_datetime_index(df, index_col, *, utc=False)` is the canonical pandas
+ingestion converter. It checks source-column existence, raises `ValidationError`
+on invalid/missing timestamps, and stably sorts timestamps ascending. `utc=True`
+interprets naive values as UTC and converts aware values. The default preserves
+the existing package timezone convention. Application ingestion always uses UTC.
+
+`create_app(root=None, upload_limit=None, static_dir=None)` is exported
+from `multigas.api` and defined in `multigas.api.app`. It creates an isolated
+store at application startup and closes its worker on shutdown. It accepts only
+local browser origins for writes and local host headers. Use one Uvicorn worker.
+An omitted upload limit uses `MULTIGAS_UPLOAD_LIMIT_BYTES` (5 GiB by default).
+Explicit arguments override environment settings. Configuration is documented
+in [Dashboard](Dashboard.md#run) and the repository-root `.env.example`.
+
 Public API surface of the `multigas` package. Each entry lists the callable
 signature followed by a parameter table. Parameters without a default are
 required.
@@ -726,7 +765,7 @@ sampling-interval members (used by
 | Member | `.total_data` |
 |---|---|
 | `ONE_SECOND` | `86400` |
-| `TWO_SECONDS` | `5760` |
+| `TWO_SECONDS` | `43200` |
 | `ONE_MINUTE` | `1440` |
 | `SIX_HOURS` | `4` |
 | `ZERO` | `4` |

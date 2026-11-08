@@ -1,0 +1,16 @@
+{
+  "generated_bytes": 1141980441,
+  "records": 1200000,
+  "channels": 32,
+  "import_seconds": 93.5,
+  "series_seconds": 0.11,
+  "figure_seconds": 6.08,
+  "peak_rss_mib": 1011.8,
+  "max_concurrent_metadata_seconds": 0.0135,
+  "series_stream_bytes": 48052768,
+  "plot_resolution": "full",
+  "plot_kind": "scatter",
+  "downsampling": false,
+  "duckdb_memory_limit": "512MB",
+  "batch_rows": 50000
+}
