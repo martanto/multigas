@@ -16,6 +16,8 @@ dataloggers. Every dataset flowing through the package is inherently
 | [Home](Home.md) | Overview, repository map, navigation, glossary |
 | [Getting Started](Getting-Started.md) | Install, first load, fluent queries, wind analysis, dev workflow |
 | [API Reference](API-Reference.md) | Public methods, signatures, and parameter tables |
+| [CLI Reference](CLI-Reference.md) | Command-line commands, source locations, and argument details |
+| [Queries](Queries.md) | Complete `Query` method index with argument types and defaults |
 | [Data Columns](Data-Columns.md) | Per-column dictionary for the datalogger's TOA5 / CSV output — meaning, units, and onboard processing |
 | [Wind Analysis](Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
@@ -34,6 +36,7 @@ dataloggers. Every dataset flowing through the package is inherently
 multigas/
 ├── src/multigas/                # Package (src layout)
 │   ├── __init__.py              # Public exports: read_file, DataLoader, version
+│   ├── cli/                     # `multigas normalize` command-line interface
 │   ├── logging.py               # Preconfigured loguru logger + toggles
 │   ├── config/                  # Configuration (stub)
 │   ├── core/
@@ -72,7 +75,9 @@ multigas/
 
 ```mermaid
 flowchart TD
-    A["Source file<br/>(TOA5 / CSV)"] --> B["read_file()<br/>multigas.core.io"]
+    A["Source file<br/>(TOA5 / CSV)"] --> CLI["multigas normalize<br/>Click + Rich"]
+    CLI --> B["read_file()<br/>multigas.core.io"]
+    A --> B
     A --> C["DataLoader.load()<br/>multigas.data.loader"]
     B --> C
     C --> D{Cache hit?}
@@ -91,6 +96,8 @@ Public entry points live at the top of the package:
 
 - **`multigas.read_file`** — one-call convenience wrapper.
 - **`multigas.DataLoader`** — full-control loader with cache management.
+- **`multigas normalize`** — terminal command to normalize a source file and
+  write its normalized CSV under the output directory.
 
 Both return a **`MultiGasData`** — a class (from
 `multigas.data.multigas_data`) that wraps the loaded DataFrame together
@@ -142,6 +149,8 @@ ds = loader.load("data/site_a.dat", dataset_type="1min")
 ```bash
 uv sync                                     # install deps (including dev)
 uv run main.py                              # run entry point
+uv run multigas --help                      # CLI commands
+uv run multigas normalize data/site_a.dat --dataset-type 1min
 uv run ruff check --fix src/                # lint + auto-fix
 uvx ty check src/                           # type check
 uv run pytest tests/                        # run test suite

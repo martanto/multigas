@@ -21,6 +21,8 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 | [Home](wiki/Home.md) | Overview, repository map, navigation, glossary |
 | [Getting Started](wiki/Getting-Started.md) | Install, first load, fluent queries, wind analysis, dev workflow |
 | [API Reference](wiki/API-Reference.md) | Public methods, signatures, and parameter tables |
+| [CLI Reference](wiki/CLI-Reference.md) | Command-line commands, source locations, and argument details |
+| [Queries](wiki/Queries.md) | Complete `Query` method index with argument types and defaults |
 | [Data Columns](wiki/Data-Columns.md) | Per-column dictionary for the datalogger's TOA5 / CSV output — meaning, units, and onboard processing |
 | [Wind Analysis](wiki/Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](wiki/Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
@@ -123,7 +125,29 @@ numeric columns, and — for sampling-interval datasets (`1s`, `2s`, `1min`,
 
 Every parameter is documented in [`wiki/API-Reference.md`](wiki/API-Reference.md).
 
+### Command-line normalization
+
+The `multigas normalize` command provides the same normalized load from a
+terminal. It writes `<output-dir>/normalized/<source-stem>.csv`; the default
+output root is `./output`.
+
+```bash
+uv run multigas normalize data/site_a.dat --dataset-type 1min
+uv run multigas normalize data/site_a.dat --dataset-type 1min --json
+uv run multigas normalize data/site_a.dat --dataset-type 1min \
+  --output-dir results --index-col TIMESTAMP --no-cache
+```
+
+Use `uv run multigas --help` or `uv run multigas normalize --help` for the
+complete option list. The command requires `--dataset-type` and supports
+`--drop-empty-columns`, `--cache-dir`, `--overwrite`, and `--verbose`.
+See the [CLI Reference](wiki/CLI-Reference.md) for all arguments, defaults,
+types, and source locations.
+
 ### Fluent queries
+
+See the complete [`Query` method reference](wiki/Queries.md) for every
+method, argument type, and default.
 
 `MultiGasData` inherits from `Query`, so column selection, filtering, and
 inspection chain directly on the result. `Query` mutates its working
@@ -215,6 +239,7 @@ The package uses the `src/` layout. Public entry points are re-exported from
 ```
 src/multigas/
 ├── __init__.py          # Exposes read_file, DataLoader, version metadata
+├── cli/                 # Click console interface (`multigas normalize`)
 ├── logging.py           # Loguru logger + enable/disable/level helpers
 ├── config/              # Configuration (stub)
 ├── core/
@@ -321,6 +346,8 @@ Sink formats, the auto-log contract for exceptions, and the
 | `loguru` | Structured logging |
 | `python-dotenv` | `.env` loading for `ENABLE_LOG` |
 | `python-slugify` | File-name-safe slugs for output paths |
+| `click` | Command-line parsing and command registration |
+| `rich` | CLI spinner and result summary |
 | `matplotlib` | Figure rendering (imported lazily by `multigas.plot`) |
 | `seaborn` | Scoped plot styling for `plot_completeness` |
 | `data-availability` | Daily-completeness chart used by `plot_completeness` |
