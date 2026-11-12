@@ -1,13 +1,17 @@
 # Multi-GAS plotting
 
 The plotting API renders six-hour (`6h`) multi-gas datasets as ten labeled
-time-series panels in a two-column layout. It creates one figure for the
-selected date range and a second figure for its trailing three months.
+time-series panels in a two-column layout by default. Set `columns=1` in
+`Plot(...)` or pass `--one-column` on the CLI to stack panels (a) through (j)
+in one column for PNG, PDF, or HTML. The Python `columns` argument accepts
+only 1 or 2. It creates one figure for the selected date range and a second
+figure for its trailing three months.
 
 ## Command line
 
 ```bash
 uv run multigas plot data/site_a.csv --dataset-type 6h
+uv run multigas plot data/site_a.csv --dataset-type 6h --one-column
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as PDF
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as HTML
 uv run multigas plot data/site_a.csv --dataset-type 6h \
@@ -38,6 +42,7 @@ plotter = Plot(
     "data/site_a.csv",
     dataset_type="6h",
     save_as="PNG",
+    columns=1,  # Omit this argument for the default two-column layout.
     start_date="2025-01-01",
     end_date="2025-03-31",
 )
@@ -49,6 +54,20 @@ paths = plotter.plot_all()
 without a time includes the full calendar day. A range with no rows raises
 `DatasetError` with an actionable message. Missing plot columns raise
 `ColumnError` before rendering.
+
+## Choosing a layout
+
+| Layout | Python | CLI | Panel arrangement |
+|---|---|---|---|
+| Two columns (default) | `columns=2`, or omit | Omit `--one-column` | Five rows, read left to right, then top to bottom. |
+| One column | `columns=1` | `--one-column` | Ten rows, panels (a) through (j) from top to bottom. |
+
+The selection applies to both output periods and all three formats. PNG and
+PDF keep the same width and double the figure height in one-column mode.
+HTML stacks the same linked panels vertically. Date labels appear only on
+the bottom row. Python raises `ValueError` for an invalid `columns` value.
+Both layouts use the same output filenames; rendering again in the same
+output directory replaces the previous figures.
 
 ## Panels and required columns
 
@@ -100,8 +119,10 @@ titles with chemical subscripts, and marker shapes provide cues beyond color.
 
 Matplotlib renders PNG and PDF; Bokeh renders HTML. The PDF is vector artwork
 with editable text, and the PNG is rendered at 300 dpi. The figure is 280 mm
-wide and 190 mm high including its caption, which fits A4 landscape with
-margins. That is wider than a Nature double column (183 mm); scale it to about
+wide and 190 mm high in the default two-column layout, including its
+caption, which fits A4 landscape with margins. One-column output keeps the
+280 mm width and increases the height to 380 mm. The default figure is wider
+than a Nature double column (183 mm); scale it to about
 65 % for journal use. All three formats draw faint,
 dashed light-grey gridlines at the major ticks of both axes, behind the data.
 In HTML every panel frame has the same size. The proportion legend sits at

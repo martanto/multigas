@@ -39,9 +39,10 @@ def test_plot_validates_dataset_type_and_columns() -> None:
 @pytest.mark.parametrize(
     "format_name, suffix", [("png", ".png"), ("PDF", ".pdf"), ("HTML", ".html")]
 )
-def test_plot_all_renders_both_periods(format_name: str, suffix: str) -> None:
+@pytest.mark.parametrize("columns", [1, 2])
+def test_plot_all_renders_both_periods(format_name: str, suffix: str, columns: int) -> None:
     output_root = TESTS_DIR / f"plot-api-output-{format_name.lower()}"
-    paths = Plot(_dataset(), save_as=format_name, output_dir=output_root).plot_all()
+    paths = Plot(_dataset(), save_as=format_name, output_dir=output_root, columns=columns).plot_all()
     try:
         assert set(paths) == {"full_period", "trailing_three_months"}
         assert all(path.suffix == suffix and path.exists() for path in paths.values())
@@ -58,7 +59,7 @@ def test_plot_all_slices_inclusive_dates(monkeypatch) -> None:
 
     captured: list[tuple[pd.Timestamp, pd.Timestamp]] = []
 
-    def fake_render(data, start, end, path, save_as):
+    def fake_render(data, start, end, path, save_as, columns=2):
         captured.append((start, end))
         return path
 
@@ -93,7 +94,7 @@ def test_plot_command_json(monkeypatch) -> None:
     output_root = TESTS_DIR / "plot-cli-output"
     try:
         result = CliRunner().invoke(cli, ["plot", str(input_path), "--dataset-type", "6h",
-                                          "--output-dir", str(output_root), "--json"])
+                                          "--output-dir", str(output_root), "--one-column", "--json"])
         assert result.exit_code == 0, result.output
         assert '"full_period"' in result.output
         assert '"trailing_three_months"' in result.output
@@ -223,3 +224,9 @@ def test_caption_flags_gaps_and_non_positive_so2_baseline() -> None:
     flagged = caption(data, frame, "Note.")
     assert "Grey bands mark periods of more than 2 days" in flagged
     assert "at or below zero (sensor baseline)" in flagged
+
+
+@pytest.mark.parametrize("columns", [0, 3, True, 1.5, "1"])
+def test_plot_rejects_invalid_columns(columns) -> None:
+    with pytest.raises(ValueError, match="columns must be 1 or 2"):
+        Plot(_dataset(), columns=columns)

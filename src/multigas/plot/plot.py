@@ -27,7 +27,8 @@ class Plot:
                  save_as: str = "PNG", output_dir: str | Path | None = None,
                  verbose: bool = False,
                  start_date: str | pd.Timestamp | None = None,
-                 end_date: str | pd.Timestamp | None = None):
+                 end_date: str | pd.Timestamp | None = None,
+                 columns: int = 2):
         """Prepare normalized input and validate the selected layout.
 
         Args:
@@ -38,15 +39,23 @@ class Plot:
             verbose: Emit informational messages during CSV loading.
             start_date: Optional inclusive first date or timestamp.
             end_date: Optional inclusive last date or timestamp.
+            columns: Number of panel columns, either 1 or 2 (default).
 
         Raises:
             DatasetError: If the supplied type conflicts or is unsupported.
             ColumnError: If a required six-hour plot column is missing.
-            ValueError: If the format or path dataset type is invalid.
+            ValueError: If the format, columns, or path dataset type is invalid.
 
         Example:
             >>> plotter = Plot("site_6h.csv", "6h", save_as="HTML")
         """
+        if (
+            isinstance(columns, bool)
+            or not isinstance(columns, int)
+            or columns not in {1, 2}
+        ):
+            raise ValueError("columns must be 1 or 2")
+        self.columns = columns
         self.save_as = save_as.upper()
         if self.save_as not in {"PNG", "PDF", "HTML"}:
             raise ValueError("save_as must be PNG, PDF, or HTML")
@@ -142,9 +151,11 @@ class Plot:
         full_path = directory / f"{self.data.basename}-full-period{ext}"
         recent_path = directory / f"{self.data.basename}-trailing-three-months{ext}"
         return {
-            "full_period": render(self.data, start, end, full_path, self.save_as),
+            "full_period": render(
+                self.data, start, end, full_path, self.save_as, columns=self.columns,
+            ),
             "trailing_three_months": render(
                 self.data, max(start, three_month_start), end, recent_path,
-                self.save_as,
+                self.save_as, columns=self.columns,
             ),
         }
