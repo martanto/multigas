@@ -11,7 +11,7 @@ package, then run commands with `uv run multigas ...`.
 |----------------------|-----------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------------------|
 | `multigas`           | Root command group; provides version reporting and command discovery.                   | [`src/multigas/cli/main.py`](../src/multigas/cli/main.py)                             | [Root options](#multigas)                    |
 | `multigas normalize` | Load and normalize an input data file, then write a normalized CSV and print a summary. | [`src/multigas/cli/commands/normalize.py`](../src/multigas/cli/commands/normalize.py) | [Arguments and options](#multigas-normalize) |
-| `multigas plot` | Render six-hour multi-gas plots in PNG or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot) |
+| `multigas plot` | Render six-hour multi-gas plots in PNG, PDF or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot) |
 | `multigas plot columns` | Render selected numeric time-series columns in PNG, PDF or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot-columns) |
 
 ## `multigas`
@@ -63,6 +63,7 @@ The JSON keys are `input`, `normalized_csv`, `rows`, `columns`, and
 
 ```bash
 uv run multigas plot data/site_a.csv --dataset-type 6h
+uv run multigas plot data/site_a.csv --dataset-type 6h --log-scale
 uv run multigas plot data/site_a.csv --dataset-type 6h --one-column
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as pdf
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as html --json
@@ -79,6 +80,13 @@ Every panel overlays a 7-day rolling median and uses robust y-limits (see
 [Multi-GAS plotting](Plot.md)). JSON keys are
 `full_period` and `trailing_three_months`.
 
+Ratio panels (a)-(e) use linear axes by default. Pass `--log-scale` to use
+logarithmic axes for ratios whose readings are all positive, regardless of
+range. Panels containing zero or negative ratios stay linear, as do panels
+(f)-(j). The option applies to both output figures and PNG, PDF, and HTML.
+Captions describe the selected scale. The Python equivalent is
+`Plot(..., log_scale=True)`; see [Ratio axes](Plot.md#reading-the-panels).
+
 | Argument / option | Type | Default | Description |
 |---|---|---|---|
 | `INPUT_PATH` | existing file path | required | Source CSV or TOA5 file. |
@@ -86,6 +94,7 @@ Every panel overlays a 7-day rolling median and uses robust y-limits (see
 | `--save-as` | `PNG`, `PDF`, or `HTML`, case-insensitive | `PNG` | Output renderer and extension. PDF is vector artwork. |
 | `--output-dir` | directory path | `None` → `<cwd>/output` | Root output directory; figures go in `figures/`. |
 | `--one-column` | flag (`bool`) | `False` | Stack all ten panels in one column for PNG, PDF, and HTML. |
+| `--log-scale` | flag (`bool`) | `False` | Use log axes for strictly positive ratios in panels (a)-(e); default is linear. Panels containing zero or negative ratios stay linear. |
 | `--width` | positive finite float | `None` | Whole-figure width in millimetres, including title and caption. |
 | `--height` | positive finite float | `None` | Whole-figure height in millimetres; overrides automatic height. |
 | `--start-date` | date (`YYYY-MM-DD`) | `None` | Inclusive first date to include. |
