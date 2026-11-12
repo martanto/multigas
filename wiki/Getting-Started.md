@@ -16,7 +16,8 @@ run a few queries against the result.
 | Package manager | [`uv`](https://docs.astral.sh/uv/) — the project uses `uv` exclusively; do **not** use `pip`, `pip install`, or `python -m pip` |
 
 Runtime dependencies pulled in by `uv sync`: `pandas`, `numpy`,
-`openpyxl`, `joblib`, `loguru`, `python-dotenv`, `python-slugify`,
+`openpyxl`, `joblib`, `loguru`, `python-dotenv`, `python-slugify`, `click`,
+`rich`,
 `matplotlib`, `seaborn`, `data-availability`.
 
 ---
@@ -155,77 +156,39 @@ ds = loader.load(
 See [API Reference → `DataLoader`](API-Reference.md#dataloader) for every
 parameter's exact type, default, and behaviour.
 
+### Normalize from the command line
+
+Install the project with `uv sync`, then run the installed console command.
+The dataset type is required; the output root defaults to `<cwd>/output`.
+
+```bash
+uv run multigas normalize data/site_a.dat --dataset-type 1min
+uv run multigas normalize data/site_a.dat --dataset-type wx \
+  --output-dir results --index-col TIMESTAMP --drop-empty-columns --no-cache
+```
+
+The command displays a loading spinner and reports the normalized CSV path,
+row and column counts, and resolved dataset type. It accepts `--cache-dir`,
+`--overwrite`, and `--verbose` as well. See `uv run multigas normalize --help`
+for details.
+
 ---
 
 ## Fluent Queries
 
-`MultiGasData` inherits from `Query`, so column selection, row filtering,
-and inspection chain directly on the result. `Query` mutates its working
-`df` in place; a pristine copy stays in `df_original` and can be
-restored via `refresh()`.
-
-### Select columns
-
-```python
-ds.select_numeric_columns().selected_columns
-# ['CO2', 'SO2', 'H2S', ...]
-
-ds.select_columns(["CO2", "SO2"]).get().columns.tolist()
-# ['CO2', 'SO2']  (.get() commits the selection)
-```
-
-`get()` commits the selection — it replaces `ds.df` with the
-column-projected frame and recomputes `numeric_columns`. Dropped
-columns only come back via `refresh()`.
-
-### Filter rows
-
-```python
-# Simple comparator (any COMPARATOR alias works)
-ds.where("CO2", ">", 1.0).count()
-
-# Index-based (column_name == index name --> compares the DatetimeIndex)
-ds.where("TIMESTAMP", ">=", "2025-01-01").count()
-
-# Partial-string date slicing
-ds.where_date("2025-01-15").count()               # a single day
-ds.where_date_between("2025-01", "2025-02").count()  # two months, inclusive
-
-# Numeric range on a column
-ds.where_values_between("CO2", 0.5, 1.5).count()
-```
-
-The `where` comparator accepts symbolic, English, or Indonesian
-aliases — see the [`COMPARATOR` table](API-Reference.md#constants-multigascoreconstant).
-
-### Chain and commit
+`MultiGasData` inherits column selection, filtering, and inspection methods
+from `Query`. These operations chain directly on the loaded dataset. See the
+complete method index, argument types, defaults, and details in
+[Queries](Queries.md).
 
 ```python
 (
     ds.where("CO2", ">", 1.0)
       .where_date_between("2025-01-01", "2025-01-31")
       .select_columns(["CO2", "SO2"])
-      .get()          # narrows ds.df to the selected columns and returns it
+      .get()
 )
-```
-
-### Undo
-
-`refresh()` restores `ds.df` from `ds.df_original` and clears the
-selection — it is the only way to bring dropped rows or columns back.
-
-```python
-ds.refresh()
-ds.is_filtered()   # False
-```
-
-### Inspect
-
-```python
-ds.missing_columns    # columns with any NaN or empty string
-ds.empty_columns      # columns that are all-NaN, all-zero, or all-empty
-ds.column_has_missing("CO2")
-ds.column_is_empty("unused_channel")
+ds.refresh()  # restore the original rows and columns
 ```
 
 ---
@@ -419,5 +382,7 @@ is repo rule 8.
 ## Where to Next
 
 - [API Reference](API-Reference.md) — every public callable with parameter tables
+- [Queries](Queries.md) — complete fluent query method reference
+- [CLI Reference](CLI-Reference.md) — command list and argument details
 - [Logging](Logging.md) — sink layout, retention, runtime toggles
 - [Exceptions](Exceptions.md) — full hierarchy, auto-log behaviour, when each is raised
