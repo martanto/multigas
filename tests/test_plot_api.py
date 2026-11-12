@@ -40,13 +40,30 @@ def test_plot_validates_dataset_type_and_columns() -> None:
     "format_name, suffix", [("png", ".png"), ("PDF", ".pdf"), ("HTML", ".html")]
 )
 @pytest.mark.parametrize("columns", [1, 2])
-def test_plot_all_renders_both_periods(format_name: str, suffix: str, columns: int) -> None:
+@pytest.mark.parametrize("log_scale", [False, True])
+def test_plot_all_renders_both_periods(format_name: str, suffix: str, columns: int,
+                                     log_scale: bool, monkeypatch) -> None:
+    import multigas.plot.six_hours as layout
+
+    scales = []
+    original_y_axis = layout.y_axis
+
+    def capture_scale(values, is_ratio, log_scale=False):
+        result = original_y_axis(values, is_ratio, log_scale)
+        scales.append(result[0])
+        return result
+
+    monkeypatch.setattr(layout, "y_axis", capture_scale)
+    data = _dataset()
+    data.df += 1  # Every ratio is positive, so log axes can be used.
     output_root = TESTS_DIR / f"plot-api-output-{format_name.lower()}"
-    paths = Plot(_dataset(), save_as=format_name, output_dir=output_root, columns=columns).plot_all()
+    paths = Plot(data, save_as=format_name, output_dir=output_root, columns=columns,
+                 log_scale=log_scale).plot_all()
     try:
         assert set(paths) == {"full_period", "trailing_three_months"}
         assert all(path.suffix == suffix and path.exists() for path in paths.values())
         assert all(path.parent == output_root / "figures" for path in paths.values())
+        assert scales == ([log_scale] * 5 + [False] * 4) * 2
     finally:
         for path in paths.values():
             path.unlink(missing_ok=True)
@@ -59,7 +76,8 @@ def test_plot_all_slices_inclusive_dates(monkeypatch) -> None:
 
     captured: list[tuple[pd.Timestamp, pd.Timestamp]] = []
 
-    def fake_render(data, start, end, path, save_as, columns=2, width=None, height=None):
+    def fake_render(data, start, end, path, save_as, columns=2, width=None, height=None,
+                    log_scale=False):
         captured.append((start, end))
         return path
 
@@ -133,20 +151,46 @@ def test_plot_command_reports_empty_date_range() -> None:
         shutil.rmtree(output_root, ignore_errors=True)
 
 
+@pytest.mark.parametrize("options, expected", [([], False), (["--log-scale"], True)])
+def test_plot_command_forwards_log_scale(monkeypatch, options, expected) -> None:
+    import importlib
+    from multigas.cli.main import cli
+
+    command = importlib.import_module("multigas.cli.commands.plot")
+    captured = {}
+
+    class FakePlot:
+        def __init__(self, *args, **kwargs):
+            captured.update(kwargs)
+
+        def plot_all(self):
+            return {"full_period": TESTS_DIR / "example.png"}
+
+    monkeypatch.setattr(command, "Plot", FakePlot)
+    result = CliRunner().invoke(
+        cli, ["plot", __file__, "--dataset-type", "6h", "--json", *options]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["log_scale"] is expected
+
+
 def _series(values: list[float]) -> pd.Series:
     index = pd.date_range("2024-01-01", periods=len(values), freq="6h")
     return pd.Series(values, index=index, dtype=float)
 
 
-def test_y_axis_uses_log_only_for_wide_positive_ratios() -> None:
+def test_y_axis_defaults_to_linear_and_log_is_optional_for_positive_ratios() -> None:
     from multigas.plot.six_hours import y_axis
 
     wide = _series([1.0, 5.0, 20.0, 400.0] * 10)
-    use_log, lower, upper = y_axis(wide, is_ratio=True)
+    assert y_axis(wide, is_ratio=True)[0] is False
+    use_log, lower, upper = y_axis(wide, is_ratio=True, log_scale=True)
     assert use_log and 0 < lower < 1.0 and upper > 400.0
-    assert y_axis(wide, is_ratio=False)[0] is False
-    assert y_axis(_series([2.0, 3.0, 4.0] * 10), is_ratio=True)[0] is False
-    assert y_axis(_series([-1.0, 5.0, 400.0] * 10), is_ratio=True)[0] is False
+    assert y_axis(wide, is_ratio=False, log_scale=True)[0] is False
+    assert y_axis(_series([2.0, 3.0, 4.0] * 10), True, True)[0] is True
+    assert y_axis(_series([3.0] * 10), True, True)[0] is True
+    for minimum in [-1.0, 0.0]:
+        assert y_axis(_series([minimum, 5.0, 400.0] * 10), True, True)[0] is False
 
 
 def test_y_axis_excludes_only_far_outliers() -> None:
@@ -215,6 +259,11 @@ def test_caption_flags_gaps_and_non_positive_so2_baseline() -> None:
 
     data = _dataset()
     plain = caption(data, data.df, "Note.")
+    assert "on linear axes" in plain
+    assert "logarithmic" not in plain
+    assert "logarithmic axes where all readings are positive, otherwise linear" in caption(
+        data, data.df, "Note.", log_scale=True
+    )
     assert "Grey bands" not in plain and "sensor baseline" not in plain
     frame = data.df.astype(float)
     frame.index = frame.index[:-1].append(

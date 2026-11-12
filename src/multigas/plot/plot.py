@@ -35,6 +35,7 @@ class Plot:
         columns: int = 2,
         width: float | None = None,
         height: float | None = None,
+        log_scale: bool = False,
     ):
         """Prepare normalized input and validate the selected layout.
 
@@ -49,6 +50,8 @@ class Plot:
             columns: Number of panel columns, either 1 or 2 (default).
             width: Whole-figure width in mm; None retains the format default.
             height: Whole-figure height in mm; None retains the layout default.
+            log_scale: Use log axes for strictly positive ratios in (a)-(e).
+                Defaults to False (linear axes).
 
         Raises:
             DatasetError: If the supplied type conflicts or is unsupported.
@@ -67,6 +70,7 @@ class Plot:
         ):
             raise ValueError("columns must be 1 or 2")
         self.columns = columns
+        self.log_scale = log_scale
         self.save_as = save_as.upper()
         if self.save_as not in {"PNG", "PDF", "HTML"}:
             raise ValueError("save_as must be PNG, PDF, or HTML")
@@ -178,6 +182,7 @@ class Plot:
                 columns=self.columns,
                 width=self.width,
                 height=self.height,
+                log_scale=self.log_scale,
             ),
             "trailing_three_months": render(
                 self.data,
@@ -188,5 +193,6 @@ class Plot:
                 columns=self.columns,
                 width=self.width,
                 height=self.height,
+                log_scale=self.log_scale,
             ),
         }

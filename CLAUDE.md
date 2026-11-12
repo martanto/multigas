@@ -25,10 +25,16 @@ Plot output supports PNG, vector PDF, and Bokeh HTML; all renderers use the
 same ten-panel ordering with configurable `columns=1` or `columns=2`
 (default). CLI `--one-column` selects `columns=1`. All formats preserve the
 panel color mapping, date windows, and below-figure caption. `multigas.plot.six_hours` holds the layout: the pure
-helpers `trend` (gap-aware 7-day rolling median), `y_axis` (log scale for
-wide positive ratios plus robust limits), `gaps` (record outages longer
+helpers `trend` (gap-aware 7-day rolling median), `y_axis` (linear by default,
+optional log scale for positive ratios plus robust limits), `gaps` (record outages longer
 than two days), `caption`, and `log_ticks` are shared by the
 matplotlib (`_render_static`) and Bokeh (`_render_html`) renderers.
+`Plot(..., log_scale=True)` / CLI `--log-scale` requests log axes for
+strictly positive ratios in (a)-(e), regardless of range. Panels with zero
+or negative ratios and panels (f)-(j) remain linear. Both periods and all
+formats use the setting; captions describe it.
+Panel (j) uses orange SO2 circles (`#B75226`) and deep-blue H2S squares
+(`#0E4F90`) for stronger contrast across PNG, PDF, and HTML.
 
 ## Documentation (Wiki)
 

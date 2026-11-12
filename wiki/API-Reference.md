@@ -11,7 +11,8 @@ required.
 ## Plotting
 
 `multigas.plot.Plot(source, dataset_type=None, save_as="PNG", output_dir=None,
-verbose=False, start_date=None, end_date=None, columns=2, width=None, height=None)` accepts a CSV path or
+verbose=False, start_date=None, end_date=None, columns=2, width=None, height=None,
+log_scale=False)` accepts a CSV path or
 `MultiGasData`. CSV paths require a
 dataset type and load through `read_file(normalize=True)`; `MultiGasData`
 provides its own type. A conflicting supplied type raises `DatasetError`.
@@ -34,6 +35,12 @@ paths = Plot("data/site_a.csv", "6h", columns=1).plot_all()
 ```
 
 See [Plot](Plot.md) for the panel and source-column inventory.
+
+`log_scale` (`bool`, default `False`) selects linear axes by default for
+ratio panels (a)-(e). Set `log_scale=True` (CLI `--log-scale`) to use log
+axes for strictly positive ratios, regardless of range. Panels with zero or
+negative readings stay linear, as do panels (f)-(j). Both periods and all
+formats use this setting. This option belongs to `Plot`, not `plot_columns`.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
