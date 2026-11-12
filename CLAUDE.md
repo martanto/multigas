@@ -2,6 +2,18 @@
 
 ## CLI Architecture
 
+`plot` is a Click group dispatcher: historical `plot CSV_PATH` invocations
+route to the standard six-hour command; `plot columns COLUMN_NAMES...`
+requires `--source` and `--dataset-type` and supports every dataset type.
+It wraps lazily exported `multigas.plot.plot_columns` in `plot/columns.py`.
+Paths use normalized loading without cache and retain empty columns; loaded
+`MultiGasData` is used directly. Selection validates all names together,
+rejects nonnumeric columns, slices inclusive dates and filters nonfinite
+values. Renderers use an adaptive one/two-column grid with observations only,
+linear full-range axes, shared time axes and a below-figure caption. No
+six-hour smoothing, clipping or outage rules apply. One PNG/PDF/HTML figure
+replaces `figures/<source-stem>-columns.<extension>`; JSON has a `figure` key.
+
 The `multigas` console script is registered in `pyproject.toml` and resolves
 to `multigas.cli.main:cli`. The Click command group registers commands from
 `multigas.cli.commands`; `normalize` wraps the public `read_file` API and
@@ -34,7 +46,7 @@ page to its navigation table and to the README documentation index.
 | [Wind Analysis](wiki/Wind-Analysis.md) | Wind sector and quadrant behavior |
 | [Logging](wiki/Logging.md) | Logging sinks, retention, and controls |
 | [Exceptions](wiki/Exceptions.md) | Exception hierarchy and handling patterns |
-| [Multi-GAS plotting](wiki/Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
+| [Multi-GAS plotting](wiki/Plot.md) | Six-hour and selected-column APIs, CLI, date filters, captions, and exports |
 
 The six-hour `Plot` API accepts `columns=1` for ten vertically stacked panels
 or `columns=2` (default) for five rows. CLI `--one-column` selects the stacked

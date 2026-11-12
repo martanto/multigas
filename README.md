@@ -27,7 +27,7 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 | [Wind Analysis](wiki/Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](wiki/Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](wiki/Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
-| [Multi-GAS plotting](wiki/Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
+| [Multi-GAS plotting](wiki/Plot.md) | Six-hour and selected-column APIs, CLI, date filters, captions, and exports |
 
 ---
 
@@ -147,6 +147,26 @@ See the [CLI Reference](wiki/CLI-Reference.md) for all arguments, defaults,
 types, and source locations.
 
 ### Multi-gas plotting
+
+Plot selected numeric columns from any dataset type in one figure:
+
+```bash
+uv run multigas plot columns Avg_CO2_lowpass Avg_SO2 \
+  --source data/site_a.csv --dataset-type 6h \
+  --start-date 2025-01-01 --end-date 2025-03-31
+```
+
+Comma-separated names are also accepted; names are trimmed and deduplicated
+in order. Missing/nonnumeric names are reported together. Each panel shows
+finite observations on a linear time axis, with a wrapped caption below the
+figure describing source, dates, exclusions, and relevant gas caveats.
+Empty columns display an explicit message. Use `--save-as PNG|PDF|HTML`,
+`--one-column`, and optional inclusive date bounds (a date-only end includes
+the whole day). Output is `figures/<source-stem>-columns.<extension>` beneath
+`--output-dir` (default `./output`); `--json` returns `{"figure": "..."}`.
+Python exposes the lazy `multigas.plot.plot_columns(source, column_names,
+dataset_type=None, ..., layout_columns=2)` API, also accepting `MultiGasData`.
+See [selected-column figures](wiki/Plot.md#selected-column-figures).
 
 Render six-hour datasets into full-period and trailing-three-month figures:
 
@@ -292,7 +312,10 @@ src/multigas/
 │   ├── loader.py        # DataLoader — file I/O, normalisation, joblib cache
 │   └── multigas_data.py # MultiGasData — DataFrame + provenance wrapper (extends Query)
 ├── plot/
-│   ├── __init__.py      # Re-exports plot_completeness
+│   ├── __init__.py      # Lazy Plot, plot_columns and plot_completeness exports
+│   ├── columns.py       # Selected-column observation-only PNG / PDF / HTML
+│   ├── plot.py          # Standard six-hour plotting API
+│   ├── six_hours.py     # Ten-panel styling and renderers
 │   └── plot_completeness.py # plot_completeness — daily-completeness PNG from the summary CSV
 └── utils/
     ├── path.py          # ensure_dir helper

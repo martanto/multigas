@@ -22,7 +22,7 @@ dataloggers. Every dataset flowing through the package is inherently
 | [Wind Analysis](Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
-| [Multi-GAS plotting](Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
+| [Multi-GAS plotting](Plot.md) | Six-hour and selected-column APIs, CLI, date filters, captions, and exports |
 
 > Additional pages (e.g. `Data-Loading.md`, `Query-API.md`,
 > `Caching.md`, `Contributing.md`) will be added as the packages /
@@ -37,7 +37,7 @@ dataloggers. Every dataset flowing through the package is inherently
 multigas/
 ├── src/multigas/                # Package (src layout)
 │   ├── __init__.py              # Public exports: read_file, DataLoader, version
-│   ├── cli/                     # `multigas normalize` command-line interface
+│   ├── cli/                     # normalize, standard plot and plot columns CLI
 │   ├── logging.py               # Preconfigured loguru logger + toggles
 │   ├── config/                  # Configuration (stub)
 │   ├── core/
@@ -52,7 +52,10 @@ multigas/
 │   │   ├── loader.py            # DataLoader — file I/O, normalisation, joblib cache
 │   │   └── multigas_data.py     # MultiGasData — DataFrame + provenance wrapper (extends Query)
 │   ├── plot/
-│   │   ├── __init__.py          # Re-exports Plot, plot_completeness
+│   │   ├── __init__.py          # Lazy Plot, plot_columns, plot_completeness exports
+│   │   ├── columns.py           # Selected-column observation-only renderers
+│   │   ├── plot.py              # Standard six-hour plotting API
+│   │   ├── six_hours.py         # Ten-panel layout and renderers
 │   │   └── plot_completeness.py # plot_completeness — daily-completeness PNG
 │   └── utils/
 │       ├── __init__.py          # Docstring-only; import helpers directly
