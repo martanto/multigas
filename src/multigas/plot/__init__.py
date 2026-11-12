@@ -4,7 +4,7 @@ from typing import Any
 from pathlib import Path
 
 
-__all__ = ["Plot", "plot_completeness"]
+__all__ = ["Plot", "plot_columns", "plot_completeness"]
 
 
 def __getattr__(name: str) -> Any:
@@ -13,6 +13,10 @@ def __getattr__(name: str) -> Any:
         from multigas.plot.plot import Plot
 
         return Plot
+    if name == "plot_columns":
+        from multigas.plot.columns import plot_columns
+
+        return plot_columns
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

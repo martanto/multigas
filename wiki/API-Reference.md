@@ -77,6 +77,7 @@ See [Plot](Plot.md) for the panel and source-column inventory.
   - [`multigas.utils.validation`](#multigasutilsvalidation)
   - [`multigas.utils.dataframe`](#multigasutilsdataframe)
 - [Plotting (`multigas.plot`)](#plotting-multigasplot)
+  - [`plot_columns`](#plot_columns)
   - [`plot_completeness`](#plot_completeness)
 - [Constants (`multigas.core.constant`)](#constants-multigascoreconstant)
 
@@ -967,6 +968,43 @@ calls are no-ops.
 ---
 
 ## Plotting (`multigas.plot`)
+
+### `plot_columns`
+
+```python
+from multigas.plot import plot_columns
+
+plot_columns(source, column_names, dataset_type=None, save_as="PNG",
+             output_dir=None, verbose=False, start_date=None, end_date=None,
+             layout_columns=2) -> Path
+```
+
+Lazily exported observations-only plotting API for every dataset type.
+Returns one figure path; details and examples are in
+[Selected-column figures](Plot.md#selected-column-figures).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `source` | `str \| Path \| MultiGasData` | required | Path loaded with normalization and without cache; loaded data used directly. |
+| `column_names` | `str \| Sequence[str]` | required | One or more names; commas allowed; trims and deduplicates in order. |
+| `dataset_type` | `DatasetType \| str \| None` | `None` | Required for paths; inferred for loaded data; conflicts rejected. |
+| `save_as` | `str` | `"PNG"` | PNG, PDF or HTML, case insensitive. |
+| `output_dir` | `str \| Path \| None` | `None` | Root defaults to `./output`; figure in `figures/`. |
+| `verbose` | `bool` | `False` | Enable loading logs. |
+| `start_date` | `str \| pd.Timestamp \| None` | `None` | Inclusive lower bound. |
+| `end_date` | `str \| pd.Timestamp \| None` | `None` | Inclusive upper bound; date-only strings include the full day. |
+| `layout_columns` | `int` | `2` | 1 or 2; single panels always use 1. |
+
+**Returns:** `Path` to `<output-dir>/figures/<source-stem>-columns.<extension>`.
+Existing figures at this path are replaced. Missing names are checked
+together before rendering. Entirely missing columns are allowed; other
+nonnumeric columns are rejected together. NaN and infinite readings are
+excluded and counted in the below-figure caption. Source data is unchanged.
+
+**Raises:** `ValueError` for empty names, invalid format/layout or a missing
+path type; `ColumnError` for missing/nonnumeric columns; `DatasetError` for
+conflicting types, invalid/reversed bounds or no selected records;
+`LoaderError` for loading failures; `PlotError` for rendering/export failures.
 
 Plotting helpers. Importing `multigas` does **not** import this
 subpackage (or matplotlib / seaborn); `extract_daily` imports it lazily

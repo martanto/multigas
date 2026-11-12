@@ -1,11 +1,75 @@
 # Multi-GAS plotting
 
+For arbitrary numeric columns and any dataset type, use
+[`plot columns`](#selected-column-figures). The standard six-hour API below
+continues to produce its two fixed ten-panel figures.
+
 The plotting API renders six-hour (`6h`) multi-gas datasets as ten labeled
 time-series panels in a two-column layout by default. Set `columns=1` in
 `Plot(...)` or pass `--one-column` on the CLI to stack panels (a) through (j)
 in one column for PNG, PDF, or HTML. The Python `columns` argument accepts
 only 1 or 2. It creates one figure for the selected date range and a second
 figure for its trailing three months.
+
+## Selected-column figures
+
+```bash
+uv run multigas plot columns Avg_CO2_lowpass Avg_SO2 \
+  --source data/site_a.csv --dataset-type 6h \
+  --start-date 2025-01-01 --end-date 2025-03-31
+uv run multigas plot columns "Avg_CO2_lowpass, Avg_SO2" \
+  --source data/site_a.csv --dataset-type 6h --save-as HTML --one-column --json
+```
+
+Names may be space-separated, comma-separated, or a quoted comma-separated
+list. Whitespace is trimmed, duplicate names are removed in input order,
+and empty names are errors. `--source` and `--dataset-type` are required;
+all types (`1s`, `2s`, `6h`, `1min`, `zero`, `span`, `wx`) are supported.
+Missing-column errors list every missing name and all available columns.
+Nonnumeric selected columns are reported together; entirely missing columns
+are retained and say "No valid readings in this period."
+
+```python
+from multigas.plot import plot_columns
+
+figure = plot_columns(
+    "data/site_a.csv", ["Avg_CO2_lowpass", "Avg_SO2"], dataset_type="6h",
+    save_as="PDF", start_date="2025-01-01", end_date="2025-03-31",
+    layout_columns=2,
+)
+```
+
+Paths are loaded with normalization enabled and empty columns retained.
+This API bypasses the cache so normalization and dataset-specific sampling
+checks always run for the requested type. Sampling-interval modes remove
+irregularly spaced records, including the first record after each gap.
+An existing `MultiGasData` is used as supplied, without renormalizing or
+mutating it; its type is inferred and a conflicting supplied type is rejected.
+
+Optional date bounds are inclusive; either can be omitted. A date-only end
+string includes the full calendar day. Invalid, reversed, or empty ranges
+raise clear errors. Slicing happens before rendering and finite-value counts.
+
+Each selected column gets a panel in input order. The default uses two
+columns, while `--one-column` / `layout_columns=1` stacks them; a single
+selection always uses one column. Figure height follows panel count. The
+lowest occupied panel in each grid column carries date labels. Recognized
+gas series retain their chemical labels and fixed palette colors; other
+names are literal and receive stable colors from that palette.
+
+These panels show observations against actual timestamps with linear axes
+and full finite ranges. There are no trend lines, automatic logarithms,
+robust clipping, or outage bands. Missing and infinite readings are excluded
+and counted in the caption. The wrapped caption sits below the figure and
+states source, observed dates, plotting conventions and relevant gas
+caveats, without inventing units. Static figures follow the project font,
+scatter and grid styling. PNG uses 300 dpi; PDF keeps editable vector text;
+HTML embeds Bokeh resources and links time axes with timestamp/value hover.
+
+One figure replaces `<output-dir>/figures/<source-stem>-columns.<extension>`;
+the output root defaults to `./output`. The CLI prints a Rich summary, or
+`{"figure": "..."}` with `--json`. `--verbose` enables loading logs.
+Static figures are always closed, including when export fails.
 
 ## Command line
 

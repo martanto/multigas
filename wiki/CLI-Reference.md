@@ -12,6 +12,7 @@ package, then run commands with `uv run multigas ...`.
 | `multigas`           | Root command group; provides version reporting and command discovery.                   | [`src/multigas/cli/main.py`](../src/multigas/cli/main.py)                             | [Root options](#multigas)                    |
 | `multigas normalize` | Load and normalize an input data file, then write a normalized CSV and print a summary. | [`src/multigas/cli/commands/normalize.py`](../src/multigas/cli/commands/normalize.py) | [Arguments and options](#multigas-normalize) |
 | `multigas plot` | Render six-hour multi-gas plots in PNG or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot) |
+| `multigas plot columns` | Render selected numeric time-series columns in PNG, PDF or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot-columns) |
 
 ## `multigas`
 
@@ -89,3 +90,28 @@ Every panel overlays a 7-day rolling median and uses robust y-limits (see
 | `--end-date` | date (`YYYY-MM-DD`) | `None` | Inclusive last date to include. An empty selected range reports an error. |
 | `--verbose` | flag | `False` | Emit informational loading logs. |
 | `--json` | flag | `False` | Print output paths as JSON instead of a Rich table. |
+
+## `multigas plot columns`
+
+```bash
+uv run multigas plot columns Avg_CO2_lowpass Avg_SO2 \
+  --source data/site_a.csv --dataset-type 6h --end-date 2025-03-31 --json
+```
+
+Creates one figure with an observations-only panel for each selected column.
+See [Selected-column figures](Plot.md#selected-column-figures) for loading,
+validation, styling, and caption conventions. Existing `plot CSV_PATH`
+invocations continue to use the standard six-hour layout.
+
+| Argument / option | Type | Default | Description |
+|---|---|---|---|
+| `COLUMN_NAMES...` | one or more strings | required | Spaces or commas separate names; trim and deduplicate in order; reject empty names. |
+| `--source` | existing file | required | Source CSV or TOA5 file. |
+| `--dataset-type` | `1s`, `2s`, `6h`, `1min`, `zero`, `span`, `wx` | required | Type for normalized loading and sampling checks. |
+| `--save-as` | `PNG`, `PDF`, `HTML` (case insensitive) | `PNG` | Figure format. |
+| `--output-dir` | directory | `./output` | Writes `figures/<source-stem>-columns.<extension>`, replacing that file. |
+| `--start-date` | date or timestamp | none | Inclusive lower bound. |
+| `--end-date` | date or timestamp | none | Inclusive upper bound; a date-only value includes the entire day. |
+| `--one-column` | flag | `False` | Stack panels vertically; default is two columns (one for a single panel). |
+| `--verbose` | flag | `False` | Enable loading logs. |
+| `--json` | flag | `False` | Print `{"figure": "..."}` instead of a Rich summary. |

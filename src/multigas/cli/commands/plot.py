@@ -9,12 +9,11 @@ from rich.table import Table
 from rich.console import Console
 
 from multigas.plot import Plot
-from multigas.core.exceptions import DatasetError
+from multigas.core.types import DatasetType
+from multigas.core.exceptions import DatasetError, MultigasException
 
 
-@click.command(
-    help="Create standard six-hour multi-gas plots from a CSV data file."
-)
+@click.command(help="Create standard six-hour multi-gas plots from a CSV data file.")
 @click.argument(
     "input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False)
 )
@@ -46,11 +45,13 @@ from multigas.core.exceptions import DatasetError
     help="Inclusive last date to plot (YYYY-MM-DD).",
 )
 @click.option(
-    "--one-column", is_flag=True, help="Stack all ten panels in one column.",
+    "--one-column",
+    is_flag=True,
+    help="Stack all ten panels in one column.",
 )
 @click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
 @click.option("--json", "json_output", is_flag=True, help="Print result paths as JSON.")
-def plot(
+def legacy_plot(
     input_path: Path,
     dataset_type: str,
     save_as: str,
@@ -85,3 +86,83 @@ def plot(
     for name, path in result.items():
         table.add_row(name.replace("_", " ").title(), path)
     Console().print(Panel(table, title="Plots complete", expand=False))
+
+
+class PlotGroup(click.Group):
+    """Route historical path-first arguments to the original plot command."""
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        """Insert the legacy command unless an explicit subcommand is present."""
+        if args and args[0] not in self.commands and args[0] not in {"--help", "-h"}:
+            args.insert(0, "standard")
+        return super().parse_args(ctx, args)
+
+
+@click.group(cls=PlotGroup, help="Plot CSV_PATH, or use columns for selected panels.")
+def plot() -> None:
+    """Dispatch standard or selected-column plotting."""
+
+
+legacy_plot.hidden = True
+plot.add_command(legacy_plot, "standard")
+
+
+@plot.command("columns")
+@click.argument("column_names", nargs=-1, required=True)
+@click.option(
+    "--source",
+    required=True,
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+)
+@click.option(
+    "--dataset-type",
+    required=True,
+    type=click.Choice([kind.value for kind in DatasetType], case_sensitive=False),
+)
+@click.option(
+    "--save-as",
+    default="PNG",
+    show_default=True,
+    type=click.Choice(["PNG", "PDF", "HTML"], case_sensitive=False),
+)
+@click.option("--output-dir", type=click.Path(path_type=Path, file_okay=False))
+@click.option("--start-date", help="Inclusive first date or timestamp.")
+@click.option(
+    "--end-date", help="Inclusive last timestamp; date-only includes all day."
+)
+@click.option("--one-column", is_flag=True, help="Stack selected panels in one column.")
+@click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
+@click.option("--json", "json_output", is_flag=True, help="Print figure path as JSON.")
+def columns(
+    column_names: tuple[str, ...],
+    source: Path,
+    dataset_type: str,
+    save_as: str,
+    output_dir: Path | None,
+    start_date: str | None,
+    end_date: str | None,
+    one_column: bool,
+    verbose: bool,
+    json_output: bool,
+) -> None:
+    """Render one time-series panel per COLUMN_NAMES (spaces or commas)."""
+    from multigas.plot import plot_columns
+
+    try:
+        path = plot_columns(
+            source,
+            column_names,
+            dataset_type,
+            save_as,
+            output_dir,
+            verbose,
+            start_date,
+            end_date,
+            layout_columns=1 if one_column else 2,
+        )
+    except (MultigasException, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if json_output:
+        click.echo(json.dumps({"figure": str(path)}))
+    else:
+        Console().print(Panel(str(path), title="Figure complete", expand=False))
