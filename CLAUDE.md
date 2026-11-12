@@ -5,8 +5,36 @@
 The `multigas` console script is registered in `pyproject.toml` and resolves
 to `multigas.cli.main:cli`. The Click command group registers commands from
 `multigas.cli.commands`; `normalize` wraps the public `read_file` API and
-reports its normalized CSV output and dataset summary with Rich by default,
-with an optional `--json` flag for machine-readable output.
+`plot` wraps the public `multigas.plot.Plot` API for six-hour datasets. Both
+commands report results with Rich by default and support `--json` output.
+The plot command accepts inclusive `--start-date` / `--end-date` bounds and
+reports an explicit error when the selected interval contains no records.
+Plot output supports PNG, vector PDF, and Bokeh HTML; all renderers use the
+same ten-panel ordering with configurable `columns=1` or `columns=2`
+(default). CLI `--one-column` selects `columns=1`. All formats preserve the
+panel color mapping, date windows, and below-figure caption. `multigas.plot.six_hours` holds the layout: the pure
+helpers `trend` (gap-aware 7-day rolling median), `y_axis` (log scale for
+wide positive ratios plus robust limits), `gaps` (record outages longer
+than two days), `caption`, and `log_ticks` are shared by the
+matplotlib (`_render_static`) and Bokeh (`_render_html`) renderers.
+
+## Documentation (Wiki)
+
+The `wiki/` directory is the documentation source of truth. Add every new
+page to its navigation table and to the README documentation index.
+
+| Page | Purpose |
+|---|---|
+| [Home](wiki/Home.md) | Wiki navigation, repository map, architecture, and glossary |
+| [Getting Started](wiki/Getting-Started.md) | Installation, loading, queries, and development workflow |
+| [API Reference](wiki/API-Reference.md) | Public API signatures and parameters |
+| [CLI Reference](wiki/CLI-Reference.md) | CLI commands and arguments |
+| [Queries](wiki/Queries.md) | Query methods and defaults |
+| [Data Columns](wiki/Data-Columns.md) | Logger column meanings, units, and processing |
+| [Wind Analysis](wiki/Wind-Analysis.md) | Wind sector and quadrant behavior |
+| [Logging](wiki/Logging.md) | Logging sinks, retention, and controls |
+| [Exceptions](wiki/Exceptions.md) | Exception hierarchy and handling patterns |
+| [Multi-GAS plotting](wiki/Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
 
 The six-hour `Plot` API accepts `columns=1` for ten vertically stacked panels
 or `columns=2` (default) for five rows. CLI `--one-column` selects the stacked
