@@ -1,6 +1,6 @@
 """Six-hour multi-gas plot layout and renderers."""
 
-from typing import NamedTuple
+from typing import NamedTuple, cast
 from pathlib import Path
 from textwrap import fill
 
@@ -23,8 +23,13 @@ class Panel(NamedTuple):
 
 # Extended Nature Reviews artwork palette; one fixed color per panel.
 PANELS = [
-    Panel(r"$\mathbf{CO_2/S_{tot}}$", "CO₂/S total", "Avg_CO2_S_tot_ratio",
-          "#738135", True),
+    Panel(
+        r"$\mathbf{CO_2/S_{tot}}$",
+        "CO₂/S total",
+        "Avg_CO2_S_tot_ratio",
+        "#738135",
+        True,
+    ),
     Panel(r"$\mathbf{H_2S/SO_2}$", "H₂S/SO₂", "Avg_H2S_SO2_ratio", "#24743A", True),
     Panel(r"$\mathbf{CO_2/H_2S}$", "CO₂/H₂S", "Avg_CO2_H2S_ratio", "#136878", True),
     Panel(r"$\mathbf{CO_2/SO_2}$", "CO₂/SO₂", "Avg_CO2_SO2_ratio", "#0E4F90", True),
@@ -54,7 +59,7 @@ MUTED_COLOR = "#5A5A5A"
 GRID_COLOR = "#D2D2D2"
 GRID_DASH = (4, 3)
 GAP_COLOR = "#000000"
-GAP_ALPHA = 0.045  # Faint tint; gridlines stay visible on top of it.
+GAP_ALPHA = 0.025  # Faint tint; gridlines stay visible on top of it.
 GAP_DAYS = 2
 FIGURE_SIZE_MM = (280, 190)  # Fits A4 landscape with margins.
 PNG_DPI = 300
@@ -80,12 +85,10 @@ def trend(values: pd.Series) -> pd.Series | None:
     if values.empty:
         return None
     daily = values.resample("1D").median()
-    rolled = daily.rolling(
-        TREND_DAYS, center=True, min_periods=TREND_MIN_DAYS
-    ).median()
+    rolled = daily.rolling(TREND_DAYS, center=True, min_periods=TREND_MIN_DAYS).median()
     if rolled.notna().sum() < 2:
         return None
-    rolled.index = rolled.index + pd.Timedelta(hours=12)
+    rolled.index = cast(pd.DatetimeIndex, rolled.index) + pd.Timedelta(hours=12)
     return rolled
 
 
@@ -204,8 +207,9 @@ def caption(data: MultiGasData, frame: pd.DataFrame, off_scale_note: str) -> str
     )
 
 
-def render(data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp,
-           path: Path, save_as: str) -> Path:
+def render(
+    data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp, path: Path, save_as: str
+) -> Path:
     """Render one date window using the requested backend.
 
     Args:
@@ -245,8 +249,14 @@ def _minor_log_label(value: float, _position: float) -> str:
     return f"{value:g}" if digit in {2, 5} else ""
 
 
-def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
-                   end: pd.Timestamp, path: Path, save_as: str) -> None:
+def _render_static(
+    data: MultiGasData,
+    frame: pd.DataFrame,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    path: Path,
+    save_as: str,
+) -> None:
     """Render the ten-panel figure to PNG or vector PDF with matplotlib."""
     import matplotlib
 
@@ -264,10 +274,12 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
     spans = gaps(frame.index)
     text = fill(
         caption(
-            data, frame,
+            data,
+            frame,
             "Open triangles mark values beyond the displayed axis range.",
         ),
-        width=int(width * 138 / caption_size), break_on_hyphens=False,
+        width=int(width * 138 / caption_size),
+        break_on_hyphens=False,
     )
     caption_height = (text.count("\n") + 1) * caption_size * 1.25 / (height * 72)
     bottom = caption_height + 0.03
@@ -276,15 +288,32 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
         hspace=0.18, wspace=0.06, rect=(0.015, bottom, 0.95, 0.955 - bottom)
     )
     dense = len(frame) > 1000
-    point_style = {"s": 3.5 if dense else 6, "alpha": 0.4 if dense else 0.65,
-                   "linewidths": 0}
+    point_style = {
+        "s": 3.5 if dense else 6,
+        "alpha": 0.4 if dense else 0.65,
+        "linewidths": 0,
+    }
 
-    def draw(axis, values: pd.Series, color: str, marker: str, lower: float,
-             upper: float, label: str | None = None) -> list[str]:
+    def draw(
+        axis,
+        values: pd.Series,
+        color: str,
+        marker: str,
+        lower: float,
+        upper: float,
+        label: str | None = None,
+    ) -> list[str]:
         notes = []
         inside = values[(values >= lower) & (values <= upper)]
-        axis.scatter(inside.index, inside, color=color, marker=marker,
-                     label=label, rasterized=False, **point_style)
+        axis.scatter(
+            inside.index,
+            inside,
+            color=color,
+            marker=marker,
+            label=label,
+            rasterized=False,
+            **point_style,
+        )
         for clipped, edge, symbol, side in (
             (values[values < lower], lower, "v", "below"),
             (values[values > upper], upper, "^", "above"),
@@ -292,9 +321,15 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
             if clipped.empty:
                 continue
             axis.scatter(
-                clipped.index, np.full(len(clipped), edge), marker=symbol, s=9,
-                facecolors="none", edgecolors=color, linewidths=0.5,
-                clip_on=False, zorder=4,
+                clipped.index,
+                np.full(len(clipped), edge),
+                marker=symbol,
+                s=9,
+                facecolors="none",
+                edgecolors=color,
+                linewidths=0.5,
+                clip_on=False,
+                zorder=4,
             )
             notes.append(f"{len(clipped)} {side} axis")
         line = trend(values)
@@ -302,7 +337,11 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
             # Darkened line with a white halo stays legible over dense points.
             dark = tuple(0.6 * channel for channel in mcolors.to_rgb(color))
             axis.plot(
-                line.index, line, color=dark, linewidth=0.9, zorder=3,
+                line.index,
+                line,
+                color=dark,
+                linewidth=0.9,
+                zorder=3,
                 path_effects=[
                     patheffects.withStroke(linewidth=2.0, foreground="white")
                 ],
@@ -310,88 +349,140 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
         return notes
 
     def finish(axis, title: str) -> None:
-        axis.set_title(title, loc="left", pad=2, fontsize=7.6,
-                       fontweight="bold", color=TEXT_COLOR)
-        axis.grid(True, which="major", color=GRID_COLOR, linewidth=0.3,
-                  linestyle=(0, GRID_DASH))
+        axis.set_title(
+            title, loc="left", pad=2, fontsize=7.6, fontweight="bold", color=TEXT_COLOR
+        )
+        axis.grid(
+            True,
+            which="major",
+            color=GRID_COLOR,
+            linewidth=0.3,
+            linestyle=(0, GRID_DASH),
+        )
         axis.set_axisbelow(True)
         for left, right in spans:
-            axis.axvspan(left, right, color=GAP_COLOR, alpha=GAP_ALPHA,
-                         linewidth=0, zorder=0)
+            axis.axvspan(
+                left, right, color=GAP_COLOR, alpha=GAP_ALPHA, linewidth=0, zorder=0
+            )
         axis.spines[["top", "right"]].set_visible(False)
         axis.tick_params(axis="both", which="major", length=2, pad=2)
         axis.tick_params(axis="both", which="minor", length=1.2, width=0.4)
 
     def mark_empty(axis) -> None:
         axis.set_yticks([])
-        axis.text(0.5, 0.5, EMPTY_MESSAGE, transform=axis.transAxes,
-                  ha="center", va="center", fontsize=6.3, color=MUTED_COLOR)
+        axis.text(
+            0.5,
+            0.5,
+            EMPTY_MESSAGE,
+            transform=axis.transAxes,
+            ha="center",
+            va="center",
+            fontsize=6.3,
+            color=MUTED_COLOR,
+        )
 
-    with plt.rc_context(
-        {
-            "font.family": "sans-serif",
-            "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
-            "mathtext.fontset": "custom",
-            "mathtext.rm": "sans",
-            "mathtext.bf": "sans:bold",
-            "axes.labelsize": 6.6,
-            "axes.titlesize": 7.6,
-            "xtick.labelsize": 6.3,
-            "ytick.labelsize": 6.3,
-            "axes.linewidth": 0.55,
-            "xtick.major.width": 0.55,
-            "ytick.major.width": 0.55,
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-        }
-    ), sns.axes_style("ticks"):
+    with (
+        plt.rc_context(
+            {
+                "font.family": "sans-serif",
+                "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
+                "mathtext.fontset": "custom",
+                "mathtext.rm": "sans",
+                "mathtext.bf": "sans:bold",
+                "axes.labelsize": 6.6,
+                "axes.titlesize": 7.6,
+                "xtick.labelsize": 6.3,
+                "ytick.labelsize": 6.3,
+                "axes.linewidth": 0.55,
+                "xtick.major.width": 0.55,
+                "ytick.major.width": 0.55,
+                "pdf.fonttype": 42,
+                "ps.fonttype": 42,
+            }
+        ),
+        sns.axes_style("ticks"),
+    ):
         figure, axes_grid = plt.subplots(
             5, 2, figsize=(width, height), sharex=True, layout=engine
         )
         try:
             axes = axes_grid.ravel()
-            for index, (axis, panel) in enumerate(zip(axes[:9], PANELS, strict=True)):
-                values = frame[panel.column].dropna()
-                if values.empty:
-                    mark_empty(axis)
+            for index, (panel_axis, panel) in enumerate(
+                zip(axes[:9], PANELS, strict=True)
+            ):
+                panel_values = frame[panel.column].dropna()
+                if panel_values.empty:
+                    mark_empty(panel_axis)
                 else:
-                    use_log, lower, upper = y_axis(values, panel.is_ratio)
+                    use_log, lower_limit, upper_limit = y_axis(
+                        panel_values, panel.is_ratio
+                    )
                     if use_log:
-                        axis.set_yscale("log")
-                        axis.yaxis.set_major_formatter(
+                        panel_axis.set_yscale("log")
+                        panel_axis.yaxis.set_major_formatter(
                             FuncFormatter(lambda value, _: f"{value:g}")
                         )
                         # Narrow log ranges get 2x and 5x labels so that
                         # more than one tick is readable.
-                        axis.yaxis.set_minor_formatter(
+                        panel_axis.yaxis.set_minor_formatter(
                             FuncFormatter(_minor_log_label)
-                            if upper / lower < 100
+                            if upper_limit / lower_limit < 100
                             else NullFormatter()
                         )
-                    elif lower < 0 < upper and values.min() < 0:
-                        axis.axhline(0, color="#9A9A9A", linewidth=0.4, zorder=0)
-                    notes = draw(axis, values, panel.color, "o", lower, upper)
-                    axis.set_ylim(lower, upper)
-                    axis.set_title(
-                        " · ".join([f"n = {len(values):,}", *notes]),
-                        loc="right", pad=2, fontsize=5.8, color=MUTED_COLOR,
+                    elif lower_limit < 0 < upper_limit and panel_values.min() < 0:
+                        panel_axis.axhline(0, color="#9A9A9A", linewidth=0.4, zorder=0)
+                    clipping_notes = draw(
+                        panel_axis,
+                        panel_values,
+                        panel.color,
+                        "o",
+                        lower_limit,
+                        upper_limit,
                     )
-                finish(axis, f"({chr(97 + index)})  {panel.label}")
+                    panel_axis.set_ylim(lower_limit, upper_limit)
+                    panel_axis.set_title(
+                        " · ".join([f"n = {len(panel_values):,}", *clipping_notes]),
+                        loc="right",
+                        pad=2,
+                        fontsize=5.8,
+                        color=MUTED_COLOR,
+                    )
+                finish(panel_axis, f"({chr(97 + index)})  {panel.label}")
 
             visible = 0
-            for column, label, _, color, marker, _ in PROPORTIONS:
-                values = frame[column].dropna()
-                if values.empty:
+            for (
+                column,
+                proportion_label,
+                _,
+                proportion_color,
+                proportion_marker,
+                _,
+            ) in PROPORTIONS:
+                proportion_values = frame[column].dropna()
+                if proportion_values.empty:
                     continue
-                draw(axes[9], values, color, marker, *PROPORTION_LIMITS, label)
+                draw(
+                    axes[9],
+                    proportion_values,
+                    proportion_color,
+                    proportion_marker,
+                    *PROPORTION_LIMITS,
+                    proportion_label,
+                )
                 visible += 1
             if visible:
                 axes[9].set_ylim(*PROPORTION_LIMITS)
                 axes[9].set_yticks([0, 25, 50, 75, 100])
                 axes[9].legend(
-                    loc="lower right", bbox_to_anchor=(1, 1.025),
-                    borderaxespad=0, frameon=False, ncols=2, fontsize=6.3,
-                    handletextpad=0.3, columnspacing=0.8, markerscale=1.6,
+                    loc="lower right",
+                    bbox_to_anchor=(1, 1.025),
+                    borderaxespad=0,
+                    frameon=False,
+                    ncols=2,
+                    fontsize=6.3,
+                    handletextpad=0.3,
+                    columnspacing=0.8,
+                    markerscale=1.6,
                 )
             else:
                 mark_empty(axes[9])
@@ -402,29 +493,50 @@ def _render_static(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
 
             pad = max((end - start) * 0.015, pd.Timedelta(hours=6))
             axes[9].set_xlim(start - pad, end + pad)
-            for axis in axes[8:10]:
-                axis.set_xlabel("Date", labelpad=3, fontsize=6.6)
+            for date_axis in axes[8:10]:
+                date_axis.set_xlabel("Date", labelpad=3, fontsize=6.6)
                 locator = mdates.AutoDateLocator(minticks=4, maxticks=8)
-                axis.xaxis.set_major_locator(locator)
-                axis.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+                date_axis.xaxis.set_major_locator(locator)
+                date_axis.xaxis.set_major_formatter(
+                    mdates.ConciseDateFormatter(locator)
+                )
             figure.text(
-                0.02, 0.985, f"{data.basename} | {start:%Y-%m-%d} to {end:%Y-%m-%d}",
-                ha="left", va="top", fontsize=8.5, fontweight="bold",
+                0.02,
+                0.985,
+                f"{data.basename} | {start:%Y-%m-%d} to {end:%Y-%m-%d}",
+                ha="left",
+                va="top",
+                fontsize=8.5,
+                fontweight="bold",
                 color=TEXT_COLOR,
             )
-            figure.text(0.02, bottom - 0.012, text, ha="left", va="top",
-                        fontsize=caption_size, color=TEXT_COLOR,
-                        linespacing=1.25)
+            figure.text(
+                0.02,
+                bottom - 0.012,
+                text,
+                ha="left",
+                va="top",
+                fontsize=caption_size,
+                color=TEXT_COLOR,
+                linespacing=1.25,
+            )
             figure.savefig(
-                path, dpi=PNG_DPI if save_as == "PNG" else None,
-                facecolor="white", format=save_as.lower(),
+                path,
+                dpi=PNG_DPI if save_as == "PNG" else None,
+                facecolor="white",
+                format=save_as.lower(),
             )
         finally:
             plt.close(figure)
 
 
-def _render_html(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
-                 end: pd.Timestamp, path: Path) -> None:
+def _render_html(
+    data: MultiGasData,
+    frame: pd.DataFrame,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    path: Path,
+) -> None:
     """Render the ten-panel figure to interactive HTML with Bokeh."""
     from bokeh.models import (
         Div,
@@ -444,69 +556,88 @@ def _render_html(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
 
     def new_figure(title: str, use_log: bool, lower: float, upper: float):
         plot = figure(
-            frame_width=560, frame_height=160, min_border_left=58,
-            x_axis_type="datetime", x_range=x_range,
+            frame_width=560,
+            frame_height=160,
+            min_border_left=58,
+            x_axis_type="datetime",
+            x_range=x_range,
             y_axis_type="log" if use_log else "linear",
-            y_range=Range1d(start=lower, end=upper), title=title,
-            tools="pan,wheel_zoom,box_zoom,reset", min_border_right=18,
+            y_range=Range1d(start=lower, end=upper),
+            title=title,
+            tools="pan,wheel_zoom,box_zoom,reset",
+            min_border_right=18,
         )
         if use_log:
             ticks = log_ticks(lower, upper)
             plot.yaxis.ticker = FixedTicker(ticks=ticks)
-            plot.yaxis.major_label_overrides = {
-                tick: f"{tick:g}" for tick in ticks
-            }
+            plot.yaxis.major_label_overrides = {tick: f"{tick:g}" for tick in ticks}
         plot.grid.grid_line_color = GRID_COLOR
         plot.grid.grid_line_dash = list(GRID_DASH)
         plot.outline_line_color = None
         for left, right in spans:
             plot.add_layout(
-                BoxAnnotation(left=left, right=right, fill_color=GAP_COLOR,
-                              fill_alpha=GAP_ALPHA, line_color=None,
-                              level="image")  # Below the grid's underlay level.
+                BoxAnnotation(
+                    left=left,
+                    right=right,
+                    fill_color=GAP_COLOR,
+                    fill_alpha=GAP_ALPHA,
+                    line_color=None,
+                    level="image",
+                )  # Below the grid's underlay level.
             )
         return plot
 
-    def draw(plot, values: pd.Series, color: str, marker: str,
-             label: str | None = None) -> None:
-        legend = {} if label is None else {"legend_label": label}
+    def draw(
+        plot, values: pd.Series, color: str, marker: str, label: str | None = None
+    ) -> None:
+        legend_options = {} if label is None else {"legend_label": label}
         points = plot.scatter(
-            x=values.index.to_numpy(), y=values.to_numpy(), size=4,
-            color=color, alpha=0.45, marker=marker, **legend,
+            x=values.index.to_numpy(),
+            y=values.to_numpy(),
+            size=4,
+            color=color,
+            alpha=0.45,
+            marker=marker,
+            **legend_options,
         )
         plot.add_tools(
-            HoverTool(renderers=[points], tooltips=hover,
-                      formatters={"@x": "datetime"})
+            HoverTool(renderers=[points], tooltips=hover, formatters={"@x": "datetime"})
         )
         line = trend(values)
         if line is not None:
-            plot.line(x=line.index.to_numpy(), y=line.to_numpy(), color=color,
-                      line_width=1.6)
+            plot.line(
+                x=line.index.to_numpy(), y=line.to_numpy(), color=color, line_width=1.6
+            )
 
     plots: list[UIElement | None] = []
     for index, panel in enumerate(PANELS):
-        values = frame[panel.column].dropna()
-        title = f"({chr(97 + index)})  {panel.html_label}"
-        if values.empty:
-            plot = new_figure(title, False, 0, 1)
-            plot.yaxis.visible = False
-            plot.text(
-                x=[start + (end - start) / 2], y=[0.5], text=[EMPTY_MESSAGE],
-                text_align="center", text_baseline="middle",
-                text_font_size="11px", text_color=MUTED_COLOR,
+        panel_values = frame[panel.column].dropna()
+        panel_title = f"({chr(97 + index)})  {panel.html_label}"
+        if panel_values.empty:
+            panel_plot = new_figure(panel_title, False, 0, 1)
+            panel_plot.yaxis.visible = False
+            panel_plot.text(
+                x=[start + (end - start) / 2],
+                y=[0.5],
+                text=[EMPTY_MESSAGE],
+                text_align="center",
+                text_baseline="middle",
+                text_font_size="11px",
+                text_color=MUTED_COLOR,
             )
         else:
-            plot = new_figure(
-                f"{title}   (n = {len(values):,})", *y_axis(values, panel.is_ratio)
+            panel_plot = new_figure(
+                f"{panel_title}   (n = {len(panel_values):,})",
+                *y_axis(panel_values, panel.is_ratio),
             )
-            draw(plot, values, panel.color, "circle")
+            draw(panel_plot, panel_values, panel.color, "circle")
         if index == 8:
-            plot.xaxis.axis_label = "Date"
+            panel_plot.xaxis.axis_label = "Date"
         else:
             # Only the bottom row carries date labels; ticks stay on every panel.
-            plot.xaxis.major_label_text_font_size = "0px"
-            plot.xaxis.major_label_standoff = 0
-        plots.append(plot)
+            panel_plot.xaxis.major_label_text_font_size = "0px"
+            panel_plot.xaxis.major_label_standoff = 0
+        plots.append(panel_plot)
 
     # Proportions cannot exceed 100 %, so headroom above 100 holds the legend
     # without overlapping data or changing the frame size.
@@ -514,10 +645,23 @@ def _render_html(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
         "(j)  SO₂ and H₂S proportions (%)", False, PROPORTION_LIMITS[0], 132
     )
     bottom.yaxis.ticker = FixedTicker(ticks=[0, 25, 50, 75, 100])
-    for column_name, _, label, color, _, marker in PROPORTIONS:
-        values = frame[column_name].dropna()
-        if not values.empty:
-            draw(bottom, values, color, marker, label)
+    for (
+        column_name,
+        _,
+        proportion_label,
+        proportion_color,
+        _,
+        proportion_marker,
+    ) in PROPORTIONS:
+        proportion_values = frame[column_name].dropna()
+        if not proportion_values.empty:
+            draw(
+                bottom,
+                proportion_values,
+                proportion_color,
+                proportion_marker,
+                proportion_label,
+            )
     if bottom.legend:
         legend = bottom.legend[0]
         legend.orientation = "horizontal"
@@ -533,7 +677,8 @@ def _render_html(data: MultiGasData, frame: pd.DataFrame, start: pd.Timestamp,
     period = f"{start:%Y-%m-%d} to {end:%Y-%m-%d}"
     output_file(path, title=f"{data.basename} ({period})")
     text = caption(
-        data, frame,
+        data,
+        frame,
         "Extreme values can lie outside the initial y-range; pan or zoom to "
         "reach them.",
     )
