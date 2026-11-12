@@ -206,7 +206,9 @@ accepts an already loaded `MultiGasData`.
 
 PNG and vector PDF output use a compact, configurable Nature-inspired panel
 layout with distinct, consistently assigned Nature Reviews palette colors,
-parenthesized panel labels, and captions directly below the plots. The columns
+parenthesized panel labels, and captions directly below the plots. The proportion
+panel pairs orange SO2 circles with deep-blue H2S squares in PNG, PDF, and HTML.
+The columns
 use a compact gutter and retain outer padding. Choose `--save-as PDF` for editable
 vector artwork. Faint dashed major gridlines sit behind the data; units are explained in the
 caption. Each panel overlays a gap-aware 7-day rolling median on the recorded
