@@ -98,7 +98,7 @@ def test_finite_order_caption_and_no_mutation(data, output, monkeypatch):
     original = data.df.copy(deep=True)
     captured = {}
 
-    def render(frame, path, columns, text):
+    def render(frame, path, columns, text, width=None, height=None):
         captured.update(frame=frame, columns=columns, text=text)
 
     monkeypatch.setattr(MODULE, "_render_static", render)
@@ -225,7 +225,7 @@ def test_python_options(data, output):
 def test_single_selection_automatically_uses_one_column(data, output, monkeypatch):
     captured = []
     monkeypatch.setattr(MODULE, "_render_static",
-                        lambda frame, path, columns, text: captured.append(columns))
+                        lambda frame, path, columns, text, *args: captured.append(columns))
     plot_columns(data, "Avg_CO2_lowpass", output_dir=output)
     plot_columns(data, "Avg_CO2_lowpass", output_dir=output, layout_columns=1)
     assert captured == [1, 1]

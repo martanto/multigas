@@ -7,6 +7,7 @@ import pandas as pd
 from multigas.core.io import read_file
 from multigas.core.types import DatasetType
 from multigas.core.exceptions import DatasetError
+from multigas.plot.dimensions import validate_dimension
 from multigas.utils.validation import check_columns_exist
 from multigas.data.multigas_data import MultiGasData
 
@@ -22,13 +23,19 @@ class Plot:
         >>> Plot("site_6h.csv", "6h").plot_all()
     """
 
-    def __init__(self, source: str | Path | MultiGasData,
-                 dataset_type: DatasetType | str | None = None,
-                 save_as: str = "PNG", output_dir: str | Path | None = None,
-                 verbose: bool = False,
-                 start_date: str | pd.Timestamp | None = None,
-                 end_date: str | pd.Timestamp | None = None,
-                 columns: int = 2):
+    def __init__(
+        self,
+        source: str | Path | MultiGasData,
+        dataset_type: DatasetType | str | None = None,
+        save_as: str = "PNG",
+        output_dir: str | Path | None = None,
+        verbose: bool = False,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
+        columns: int = 2,
+        width: float | None = None,
+        height: float | None = None,
+    ):
         """Prepare normalized input and validate the selected layout.
 
         Args:
@@ -40,15 +47,19 @@ class Plot:
             start_date: Optional inclusive first date or timestamp.
             end_date: Optional inclusive last date or timestamp.
             columns: Number of panel columns, either 1 or 2 (default).
+            width: Whole-figure width in mm; None retains the format default.
+            height: Whole-figure height in mm; None retains the layout default.
 
         Raises:
             DatasetError: If the supplied type conflicts or is unsupported.
             ColumnError: If a required six-hour plot column is missing.
-            ValueError: If the format, columns, or path dataset type is invalid.
+            ValueError: If dimensions, format, columns, or path type are invalid.
 
         Example:
             >>> plotter = Plot("site_6h.csv", "6h", save_as="HTML")
         """
+        self.width = validate_dimension(width, "width")
+        self.height = validate_dimension(height, "height")
         if (
             isinstance(columns, bool)
             or not isinstance(columns, int)
@@ -59,13 +70,18 @@ class Plot:
         self.save_as = save_as.upper()
         if self.save_as not in {"PNG", "PDF", "HTML"}:
             raise ValueError("save_as must be PNG, PDF, or HTML")
-        self.output_dir = Path.cwd() / "output" if output_dir is None else Path(output_dir)
+        self.output_dir = (
+            Path.cwd() / "output" if output_dir is None else Path(output_dir)
+        )
         self.verbose = verbose
         self.start_date = start_date
         self.end_date = end_date
         if isinstance(source, MultiGasData):
             self.data = source
-            if dataset_type is not None and DatasetType(dataset_type) != source.dataset_type:
+            if (
+                dataset_type is not None
+                and DatasetType(dataset_type) != source.dataset_type
+            ):
                 raise DatasetError(
                     f"Supplied dataset_type {dataset_type!r} conflicts with "
                     f"MultiGasData type {source.dataset_type.value!r}"
@@ -87,7 +103,9 @@ class Plot:
                 output_dir=self.output_dir,
             )
         if self.dataset_type != DatasetType.SIX_HOURS:
-            raise DatasetError(f"Plot layout is not supported for {self.dataset_type.value!r}")
+            raise DatasetError(
+                f"Plot layout is not supported for {self.dataset_type.value!r}"
+            )
         from multigas.plot.six_hours import REQUIRED_COLUMNS
 
         check_columns_exist(REQUIRED_COLUMNS, self.data.df.columns.tolist())
@@ -152,10 +170,23 @@ class Plot:
         recent_path = directory / f"{self.data.basename}-trailing-three-months{ext}"
         return {
             "full_period": render(
-                self.data, start, end, full_path, self.save_as, columns=self.columns,
+                self.data,
+                start,
+                end,
+                full_path,
+                self.save_as,
+                columns=self.columns,
+                width=self.width,
+                height=self.height,
             ),
             "trailing_three_months": render(
-                self.data, max(start, three_month_start), end, recent_path,
-                self.save_as, columns=self.columns,
+                self.data,
+                max(start, three_month_start),
+                end,
+                recent_path,
+                self.save_as,
+                columns=self.columns,
+                width=self.width,
+                height=self.height,
             ),
         }

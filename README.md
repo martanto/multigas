@@ -148,6 +148,23 @@ types, and source locations.
 
 ### Multi-gas plotting
 
+Both plotting commands support `--width` and `--height` in millimetres for
+the whole figure, including titles and captions:
+
+```bash
+uv run multigas plot data/site_a.csv --dataset-type 6h --width 300 --height 220
+uv run multigas plot columns Avg_SO2 --source data/site_a.csv --dataset-type 6h --width 200 --height 150
+```
+
+Python `Plot` and `plot_columns` accept optional
+`width=None` and `height=None`. Either dimension can be set independently;
+omitted values keep the format/layout defaults, and explicit height overrides
+automatic height. Static output uses `mm / 25.4` inches without tight cropping
+for custom sizes; HTML uses `round(mm * 96 / 25.4)` CSS pixels. Fonts and DPI
+stay fixed. Sizes must be finite positive real numbers; invalid arguments
+raise `ValueError` and undersized layouts raise `PlotError`.
+See [Figure dimensions](wiki/Plot.md#figure-dimensions) for defaults and details.
+
 Plot selected numeric columns from any dataset type in one figure:
 
 ```bash
@@ -196,7 +213,7 @@ caption. Each panel overlays a gap-aware 7-day rolling median on the recorded
 points and reports its valid-reading count. Wide-ranging ratios use log axes,
 and far outliers are marked on the axis edge instead of flattening the record.
 Grey bands mark logger outages longer than two days, and the caption warns
-when the SO2 baseline is at or below zero. PNG and PDF are 280 mm x 190 mm
+when the SO2 baseline is at or below zero. PNG and PDF default to 280 mm x 190 mm
 with two columns (fits A4 landscape with margins), or 280 mm x 380 mm
 with `--one-column`. HTML output adds linked zooming and hover values. Gas units are reported as unassigned when the TOA5 units row is
 blank; figure captions preserve that limitation. See the [figure guide](https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/)
@@ -314,6 +331,7 @@ src/multigas/
 ├── plot/
 │   ├── __init__.py      # Lazy Plot, plot_columns and plot_completeness exports
 │   ├── columns.py       # Selected-column observation-only PNG / PDF / HTML
+│   ├── dimensions.py    # Backend-free size validation and shared layout budgets
 │   ├── plot.py          # Standard six-hour plotting API
 │   ├── six_hours.py     # Ten-panel styling and renderers
 │   └── plot_completeness.py # plot_completeness — daily-completeness PNG from the summary CSV

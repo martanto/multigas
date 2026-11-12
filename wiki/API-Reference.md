@@ -11,7 +11,7 @@ required.
 ## Plotting
 
 `multigas.plot.Plot(source, dataset_type=None, save_as="PNG", output_dir=None,
-verbose=False, start_date=None, end_date=None, columns=2)` accepts a CSV path or
+verbose=False, start_date=None, end_date=None, columns=2, width=None, height=None)` accepts a CSV path or
 `MultiGasData`. CSV paths require a
 dataset type and load through `read_file(normalize=True)`; `MultiGasData`
 provides its own type. A conflicting supplied type raises `DatasetError`.
@@ -34,6 +34,21 @@ paths = Plot("data/site_a.csv", "6h", columns=1).plot_all()
 ```
 
 See [Plot](Plot.md) for the panel and source-column inventory.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `width` | `float \| None` | `None` | Whole-figure width in millimetres; omitted keeps the format default. |
+| `height` | `float \| None` | `None` | Whole-figure height in millimetres; overrides automatic layout height. |
+
+These appended parameters also apply to `plot_columns`.
+Dimensions are independent and include titles and captions. Six-hour static
+defaults are 280 × 190 mm or 280 × 380 mm with one column. HTML converts each
+requested outer dimension to CSS pixels with `round(mm * 96 / 25.4)`; omitted
+dimensions keep their format/layout defaults. PNG/PDF convert with `mm / 25.4`
+and custom exports have no tight cropping. Fonts and DPI are unchanged.
+Invalid sizes (including booleans, nonpositive or nonfinite values) raise
+`ValueError` before loading. Insufficient layout space raises `PlotError`
+during rendering. See [Figure dimensions](Plot.md#figure-dimensions) for examples.
 
 ## Table of Contents
 
@@ -976,7 +991,7 @@ from multigas.plot import plot_columns
 
 plot_columns(source, column_names, dataset_type=None, save_as="PNG",
              output_dir=None, verbose=False, start_date=None, end_date=None,
-             layout_columns=2) -> Path
+             layout_columns=2, width=None, height=None) -> Path
 ```
 
 Lazily exported observations-only plotting API for every dataset type.
@@ -994,6 +1009,8 @@ Returns one figure path; details and examples are in
 | `start_date` | `str \| pd.Timestamp \| None` | `None` | Inclusive lower bound. |
 | `end_date` | `str \| pd.Timestamp \| None` | `None` | Inclusive upper bound; date-only strings include the full day. |
 | `layout_columns` | `int` | `2` | 1 or 2; single panels always use 1. |
+| `width` | `float \| None` | `None` | Whole-figure width in mm; static default 280 mm. |
+| `height` | `float \| None` | `None` | Whole-figure height in mm; default follows panel count and caption. |
 
 **Returns:** `Path` to `<output-dir>/figures/<source-stem>-columns.<extension>`.
 Existing figures at this path are replaced. Missing names are checked
@@ -1001,7 +1018,7 @@ together before rendering. Entirely missing columns are allowed; other
 nonnumeric columns are rejected together. NaN and infinite readings are
 excluded and counted in the below-figure caption. Source data is unchanged.
 
-**Raises:** `ValueError` for empty names, invalid format/layout or a missing
+**Raises:** `ValueError` for invalid dimensions, empty names, invalid format/layout or a missing
 path type; `ColumnError` for missing/nonnumeric columns; `DatasetError` for
 conflicting types, invalid/reversed bounds or no selected records;
 `LoaderError` for loading failures; `PlotError` for rendering/export failures.

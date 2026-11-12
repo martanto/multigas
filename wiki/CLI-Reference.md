@@ -86,6 +86,8 @@ Every panel overlays a 7-day rolling median and uses robust y-limits (see
 | `--save-as` | `PNG`, `PDF`, or `HTML`, case-insensitive | `PNG` | Output renderer and extension. PDF is vector artwork. |
 | `--output-dir` | directory path | `None` → `<cwd>/output` | Root output directory; figures go in `figures/`. |
 | `--one-column` | flag (`bool`) | `False` | Stack all ten panels in one column for PNG, PDF, and HTML. |
+| `--width` | positive finite float | `None` | Whole-figure width in millimetres, including title and caption. |
+| `--height` | positive finite float | `None` | Whole-figure height in millimetres; overrides automatic height. |
 | `--start-date` | date (`YYYY-MM-DD`) | `None` | Inclusive first date to include. |
 | `--end-date` | date (`YYYY-MM-DD`) | `None` | Inclusive last date to include. An empty selected range reports an error. |
 | `--verbose` | flag | `False` | Emit informational loading logs. |
@@ -113,5 +115,13 @@ invocations continue to use the standard six-hour layout.
 | `--start-date` | date or timestamp | none | Inclusive lower bound. |
 | `--end-date` | date or timestamp | none | Inclusive upper bound; a date-only value includes the entire day. |
 | `--one-column` | flag | `False` | Stack panels vertically; default is two columns (one for a single panel). |
+| `--width` | positive finite float | `None` | Whole-figure width in millimetres, including title and caption. |
+| `--height` | positive finite float | `None` | Whole-figure height in millimetres; overrides automatic height. |
 | `--verbose` | flag | `False` | Enable loading logs. |
 | `--json` | flag | `False` | Print `{"figure": "..."}` instead of a Rich summary. |
+
+Both plotting commands allow either size independently. Omitted dimensions keep
+their format/layout defaults. HTML converts requested sizes with
+`round(mm * 96 / 25.4)` CSS pixels. Invalid options and undersized layouts
+report errors. See [Figure dimensions](Plot.md#figure-dimensions) for defaults,
+PNG/PDF conversion and examples.

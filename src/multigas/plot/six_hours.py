@@ -210,6 +210,8 @@ def caption(data: MultiGasData, frame: pd.DataFrame, off_scale_note: str) -> str
 def render(
     data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp, path: Path, save_as: str,
     columns: int = 2,
+    width: float | None = None,
+    height: float | None = None,
 ) -> Path:
     """Render one date window using the requested backend.
 
@@ -220,6 +222,8 @@ def render(
         path: Destination file path.
         save_as: Renderer format, ``PNG``, ``PDF``, or ``HTML``.
         columns: Number of panel columns, 1 or 2.
+        width: Optional whole-figure width in mm.
+        height: Optional whole-figure height in mm.
 
     Raises:
         PlotError: If the window is empty or the renderer fails.
@@ -235,9 +239,9 @@ def render(
         raise PlotError(f"No data available in plot period {start} to {end}")
     try:
         if save_as in {"PNG", "PDF"}:
-            _render_static(data, frame, start, end, path, save_as, columns)
+            _render_static(data, frame, start, end, path, save_as, columns, width, height)
         else:
-            _render_html(data, frame, start, end, path, columns)
+            _render_html(data, frame, start, end, path, columns, width, height)
     except Exception as exc:
         raise PlotError(f"Could not render {save_as} plot {path}: {exc}") from exc
     return path
@@ -259,6 +263,8 @@ def _render_static(
     path: Path,
     save_as: str,
     columns: int = 2,
+    width: float | None = None,
+    height: float | None = None,
 ) -> None:
     """Render the ten-panel figure to PNG or vector PDF with matplotlib."""
     import matplotlib
@@ -272,9 +278,12 @@ def _render_static(
     from matplotlib.ticker import FuncFormatter, NullFormatter
     from matplotlib.layout_engine import ConstrainedLayoutEngine
 
-    width, height = (size / 25.4 for size in FIGURE_SIZE_MM)
-    if columns == 1:
-        height *= 2
+    from multigas.plot.dimensions import check_static_space, check_static_artists
+
+    custom_size = width is not None or height is not None
+    width = (FIGURE_SIZE_MM[0] if width is None else width) / 25.4
+    height = (FIGURE_SIZE_MM[1] * (2 if columns == 1 else 1)
+              if height is None else height) / 25.4
     caption_size = 6.2
     spans = gaps(frame.index)
     text = fill(
@@ -283,11 +292,14 @@ def _render_static(
             frame,
             "Open triangles mark values beyond the displayed axis range.",
         ),
-        width=int(width * 138 / caption_size),
+        width=max(1, int(width * 138 / caption_size)),
         break_on_hyphens=False,
     )
     caption_height = (text.count("\n") + 1) * caption_size * 1.25 / (height * 72)
     bottom = caption_height + 0.03
+    if custom_size:
+        check_static_space(width, height, 10 // columns, columns,
+                           caption_height * height)
     # Rect is (left, bottom, width, height); the caption sits in the bottom band.
     engine = ConstrainedLayoutEngine(
         hspace=0.18, wspace=0.06, rect=(0.015, bottom, 0.95, 0.955 - bottom)
@@ -403,6 +415,7 @@ def _render_static(
                 "ytick.major.width": 0.55,
                 "pdf.fonttype": 42,
                 "ps.fonttype": 42,
+                "savefig.bbox": None,
             }
         ),
         sns.axes_style("ticks"),
@@ -525,11 +538,14 @@ def _render_static(
                 color=TEXT_COLOR,
                 linespacing=1.25,
             )
+            if custom_size:
+                check_static_artists(figure)
             figure.savefig(
                 path,
                 dpi=PNG_DPI if save_as == "PNG" else None,
                 facecolor="white",
                 format=save_as.lower(),
+                bbox_inches=None,
             )
         finally:
             plt.close(figure)
@@ -542,6 +558,8 @@ def _render_html(
     end: pd.Timestamp,
     path: Path,
     columns: int = 2,
+    width: float | None = None,
+    height: float | None = None,
 ) -> None:
     """Render the ten-panel figure to interactive HTML with Bokeh."""
     from bokeh.models import (
@@ -688,6 +706,12 @@ def _render_html(
         "Extreme values can lie outside the initial y-range; pan or zoom to "
         "reach them.",
     )
+    if width is not None or height is not None:
+        from multigas.plot.dimensions import size_html
+
+        save(size_html(plots, f"{data.basename} | {period}", text, columns,
+                       width, height, columns * 636 + 30, 212))
+        return
     save(
         column(
             Div(text=f"<h3 style='margin:4px 0'>{data.basename} | {period}</h3>"),
