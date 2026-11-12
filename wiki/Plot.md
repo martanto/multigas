@@ -191,7 +191,7 @@ titles with chemical subscripts, and marker shapes provide cues beyond color.
 | g | SO2 concentration | Orange `#B75226` | `Avg_SO2` |
 | h | H2S concentration | Yellow-olive `#9C792C` | `Avg_H2S` |
 | i | H2O concentration | Brown `#75503E` | `Avg_H2O` |
-| j | SO2 and H2S proportions (%) | SO2 orange circles, H2S yellow-olive squares (matching panels g and h) | `Avg_SO2_proportion`, `Avg_H2S_proportion` |
+| j | SO2 and H2S proportions (%) | SO2 orange circles (`#B75226`), H2S deep-blue squares (`#0E4F90`) for stronger contrast in all formats | `Avg_SO2_proportion`, `Avg_H2S_proportion` |
 
 ## Reading the panels
 

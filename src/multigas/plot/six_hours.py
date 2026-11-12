@@ -40,10 +40,10 @@ PANELS = [
     Panel(r"$\mathbf{H_2O}$", "H₂O", "Avg_H2O", "#75503E", False),
 ]
 # Panel (j): (column, mathtext label, Unicode label, color, mpl marker, bokeh marker).
-# Colors match the SO2 and H2S concentration panels.
+# Orange and blue distinguish the two overlaid proportions.
 PROPORTIONS = [
     ("Avg_SO2_proportion", r"$\mathrm{SO_2}$", "SO₂", "#B75226", "o", "circle"),
-    ("Avg_H2S_proportion", r"$\mathrm{H_2S}$", "H₂S", "#9C792C", "s", "square"),
+    ("Avg_H2S_proportion", r"$\mathrm{H_2S}$", "H₂S", "#0E4F90", "s", "square"),
 ]
 PROPORTION_LIMITS = (-5.0, 105.0)
 SERIES = [(panel.html_label, panel.column) for panel in PANELS]
