@@ -4,15 +4,17 @@ import json
 from pathlib import Path
 
 import click
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.console import Console
 
 from multigas import read_file
 from multigas.core.types import DatasetType
 
 
-@click.command()
+@click.command(
+    help="Load a multi-gas data file, normalize its records, and write a normalized CSV."
+)
 @click.argument("input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False))
 @click.option(
     "--dataset-type",

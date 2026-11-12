@@ -8,6 +8,23 @@ required.
 
 ---
 
+## Plotting
+
+`multigas.plot.Plot(source, dataset_type=None, save_as="PNG", output_dir=None,
+verbose=False, start_date=None, end_date=None)` accepts a CSV path or
+`MultiGasData`. CSV paths require a
+dataset type and load through `read_file(normalize=True)`; `MultiGasData`
+provides its own type. A conflicting supplied type raises `DatasetError`.
+Currently only `DatasetType.SIX_HOURS` (`6h`) is supported. `save_as` accepts
+`PNG`, vector `PDF`, or `HTML`. `plot_all()` returns a mapping with `full_period` and
+`trailing_three_months` output paths under `<output-dir>/figures` (default
+`<cwd>/output/figures`). `start_date` and `end_date` are inclusive bounds;
+date-only end values include the full day. Call parameterless `plot_all()` to
+render; it raises `DatasetError` with a clear message if the configured range
+has no data. Missing required columns raise `ColumnError`.
+
+See [Plot](Plot.md) for the panel and source-column inventory.
+
 ## Table of Contents
 
 - [Top-level exports](#top-level-exports)

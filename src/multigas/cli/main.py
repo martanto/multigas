@@ -2,6 +2,7 @@
 
 import click
 
+from multigas.cli.commands.plot import plot
 from multigas.cli.commands.normalize import normalize
 
 
@@ -12,3 +13,4 @@ def cli() -> None:
 
 
 cli.add_command(normalize)
+cli.add_command(plot)

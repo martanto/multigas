@@ -27,6 +27,7 @@ Full documentation lives in the [`wiki/`](wiki/) directory — start at
 | [Wind Analysis](wiki/Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](wiki/Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](wiki/Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
+| [Multi-GAS plotting](wiki/Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
 
 ---
 
@@ -98,6 +99,7 @@ ds.source_path             # absolute path to the source file
 ds.start_date_str          # e.g. '2025-01-01'
 ds.end_date_str            # e.g. '2025-01-31'
 ds.numeric_columns         # numeric-dtype column names
+
 ```
 
 Need full control over paths, cache behaviour, or verbosity? Use `DataLoader`
@@ -143,6 +145,36 @@ complete option list. The command requires `--dataset-type` and supports
 `--drop-empty-columns`, `--cache-dir`, `--overwrite`, and `--verbose`.
 See the [CLI Reference](wiki/CLI-Reference.md) for all arguments, defaults,
 types, and source locations.
+
+### Multi-gas plotting
+
+Render six-hour datasets into full-period and trailing-three-month figures:
+
+```bash
+uv run multigas plot data/site_a.csv --dataset-type 6h
+uv run multigas plot data/site_a.csv --dataset-type 6h --save-as PDF
+uv run multigas plot data/site_a.csv --dataset-type 6h --save-as HTML --json
+uv run multigas plot data/site_a.csv --dataset-type 6h --start-date 2025-01-01 --end-date 2025-03-31
+```
+
+Figures are written under `<output-dir>/figures` (default `./output/figures`).
+Use `--start-date` and `--end-date` to select an inclusive date range. An empty
+range reports an explicit error. The public `multigas.plot.Plot` API also
+accepts an already loaded `MultiGasData`.
+
+PNG and vector PDF output use a compact, two-column Nature-inspired panel
+layout with distinct, consistently assigned Nature Reviews palette colors,
+parenthesized panel labels, and captions directly below the plots. The columns
+use a compact gutter and retain outer padding. Choose `--save-as PDF` for editable
+vector artwork. Faint dashed major gridlines sit behind the data; units are explained in the
+caption. Each panel overlays a gap-aware 7-day rolling median on the recorded
+points and reports its valid-reading count. Wide-ranging ratios use log axes,
+and far outliers are marked on the axis edge instead of flattening the record.
+Grey bands mark logger outages longer than two days, and the caption warns
+when the SO2 baseline is at or below zero. PNG and PDF are 280 mm x 190 mm
+(A4 landscape). HTML output adds linked zooming and hover values. Gas units are reported as unassigned when the TOA5 units row is
+blank; figure captions preserve that limitation. See the [figure guide](https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/)
+and [artwork palette guidance](https://www.nature.com/documents/natrev-artworkguide.pdf).
 
 ### Fluent queries
 
@@ -349,6 +381,7 @@ Sink formats, the auto-log contract for exceptions, and the
 | `click` | Command-line parsing and command registration |
 | `rich` | CLI spinner and result summary |
 | `matplotlib` | Figure rendering (imported lazily by `multigas.plot`) |
+| `bokeh` | Interactive HTML figure rendering by `multigas.plot.Plot` |
 | `seaborn` | Scoped plot styling for `plot_completeness` |
 | `data-availability` | Daily-completeness chart used by `plot_completeness` |
 

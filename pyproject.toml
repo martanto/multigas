@@ -15,6 +15,7 @@ keywords = ["multigas", "volcano", "gas", "sensor", "monitoring"]
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.2.1",
+    "bokeh>=3.6.0",
     "data-availability>=0.3.1",
     "joblib>=1.5.3",
     "loguru>=0.7.3",
