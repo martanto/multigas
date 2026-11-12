@@ -11,6 +11,7 @@ package, then run commands with `uv run multigas ...`.
 |----------------------|-----------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------------------|
 | `multigas`           | Root command group; provides version reporting and command discovery.                   | [`src/multigas/cli/main.py`](../src/multigas/cli/main.py)                             | [Root options](#multigas)                    |
 | `multigas normalize` | Load and normalize an input data file, then write a normalized CSV and print a summary. | [`src/multigas/cli/commands/normalize.py`](../src/multigas/cli/commands/normalize.py) | [Arguments and options](#multigas-normalize) |
+| `multigas plot` | Render six-hour multi-gas plots in PNG or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot) |
 
 ## `multigas`
 
@@ -56,3 +57,31 @@ The JSON keys are `input`, `normalized_csv`, `rows`, `columns`, and
 | `--overwrite`          | flag (`bool`)                                          | `False`                         | Reload even when a cache entry exists.                          |
 | `--verbose`            | flag (`bool`)                                          | `False`                         | Emit informational loading logs.                                |
 | `--json`               | flag (`bool`)                                          | `False`                         | Print the summary as JSON instead of a Rich table.               |
+
+## `multigas plot`
+
+```bash
+uv run multigas plot data/site_a.csv --dataset-type 6h
+uv run multigas plot data/site_a.csv --dataset-type 6h --save-as pdf
+uv run multigas plot data/site_a.csv --dataset-type 6h --save-as html --json
+uv run multigas plot data/site_a.csv --dataset-type 6h --start-date 2025-01-01 --end-date 2025-03-31
+```
+
+Writes two figures under `<output-dir>/figures` (default `<cwd>/output/figures`):
+the full selected period and the trailing three months within the selected
+range. `--save-as PDF` creates editable vector figures with below-panel
+captions; `--save-as HTML` creates linked, zoomable panels with hover values.
+Every panel overlays a 7-day rolling median and uses robust y-limits (see
+[Multi-GAS plotting](Plot.md)). JSON keys are
+`full_period` and `trailing_three_months`.
+
+| Argument / option | Type | Default | Description |
+|---|---|---|---|
+| `INPUT_PATH` | existing file path | required | Source CSV or TOA5 file. |
+| `--dataset-type` | choice: `6h` | required | Dataset type; only the six-hour layout is currently available. |
+| `--save-as` | `PNG`, `PDF`, or `HTML`, case-insensitive | `PNG` | Output renderer and extension. PDF is vector artwork. |
+| `--output-dir` | directory path | `None` → `<cwd>/output` | Root output directory; figures go in `figures/`. |
+| `--start-date` | date (`YYYY-MM-DD`) | `None` | Inclusive first date to include. |
+| `--end-date` | date (`YYYY-MM-DD`) | `None` | Inclusive last date to include. An empty selected range reports an error. |
+| `--verbose` | flag | `False` | Emit informational loading logs. |
+| `--json` | flag | `False` | Print output paths as JSON instead of a Rich table. |

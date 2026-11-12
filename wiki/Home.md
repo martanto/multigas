@@ -22,6 +22,7 @@ dataloggers. Every dataset flowing through the package is inherently
 | [Wind Analysis](Wind-Analysis.md) | Sector / quadrant tables, bearing normalisation, `add_wind_direction` / `add_wind_quadrant` contracts |
 | [Logging](Logging.md) | Sink layout, retention, runtime toggles, `ENABLE_LOG` contract |
 | [Exceptions](Exceptions.md) | Hierarchy, auto-log behaviour, soft vs hard failures, catching patterns |
+| [Multi-GAS plotting](Plot.md) | Six-hour plotting API, CLI, date filters, panels, and output formats |
 
 > Additional pages (e.g. `Data-Loading.md`, `Query-API.md`,
 > `Caching.md`, `Contributing.md`) will be added as the packages /
@@ -51,7 +52,7 @@ multigas/
 │   │   ├── loader.py            # DataLoader — file I/O, normalisation, joblib cache
 │   │   └── multigas_data.py     # MultiGasData — DataFrame + provenance wrapper (extends Query)
 │   ├── plot/
-│   │   ├── __init__.py          # Re-exports plot_completeness
+│   │   ├── __init__.py          # Re-exports Plot, plot_completeness
 │   │   └── plot_completeness.py # plot_completeness — daily-completeness PNG
 │   └── utils/
 │       ├── __init__.py          # Docstring-only; import helpers directly
@@ -151,6 +152,7 @@ uv sync                                     # install deps (including dev)
 uv run main.py                              # run entry point
 uv run multigas --help                      # CLI commands
 uv run multigas normalize data/site_a.dat --dataset-type 1min
+uv run multigas plot data/site_a.csv --dataset-type 6h
 uv run ruff check --fix src/                # lint + auto-fix
 uvx ty check src/                           # type check
 uv run pytest tests/                        # run test suite
