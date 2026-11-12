@@ -152,17 +152,22 @@ Render six-hour datasets into full-period and trailing-three-month figures:
 
 ```bash
 uv run multigas plot data/site_a.csv --dataset-type 6h
+uv run multigas plot data/site_a.csv --dataset-type 6h --one-column
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as PDF
 uv run multigas plot data/site_a.csv --dataset-type 6h --save-as HTML --json
 uv run multigas plot data/site_a.csv --dataset-type 6h --start-date 2025-01-01 --end-date 2025-03-31
 ```
 
 Figures are written under `<output-dir>/figures` (default `./output/figures`).
+Use `--one-column` to stack all ten panels in one column, or set
+`Plot(..., columns=1)` in Python. PNG, PDF, and HTML support this option;
+two columns remain the default.
+
 Use `--start-date` and `--end-date` to select an inclusive date range. An empty
 range reports an explicit error. The public `multigas.plot.Plot` API also
 accepts an already loaded `MultiGasData`.
 
-PNG and vector PDF output use a compact, two-column Nature-inspired panel
+PNG and vector PDF output use a compact, configurable Nature-inspired panel
 layout with distinct, consistently assigned Nature Reviews palette colors,
 parenthesized panel labels, and captions directly below the plots. The columns
 use a compact gutter and retain outer padding. Choose `--save-as PDF` for editable
@@ -172,7 +177,8 @@ points and reports its valid-reading count. Wide-ranging ratios use log axes,
 and far outliers are marked on the axis edge instead of flattening the record.
 Grey bands mark logger outages longer than two days, and the caption warns
 when the SO2 baseline is at or below zero. PNG and PDF are 280 mm x 190 mm
-(A4 landscape). HTML output adds linked zooming and hover values. Gas units are reported as unassigned when the TOA5 units row is
+with two columns (fits A4 landscape with margins), or 280 mm x 380 mm
+with `--one-column`. HTML output adds linked zooming and hover values. Gas units are reported as unassigned when the TOA5 units row is
 blank; figure captions preserve that limitation. See the [figure guide](https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/)
 and [artwork palette guidance](https://www.nature.com/documents/natrev-artworkguide.pdf).
 

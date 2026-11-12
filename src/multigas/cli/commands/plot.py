@@ -45,6 +45,9 @@ from multigas.core.exceptions import DatasetError
     default=None,
     help="Inclusive last date to plot (YYYY-MM-DD).",
 )
+@click.option(
+    "--one-column", is_flag=True, help="Stack all ten panels in one column.",
+)
 @click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
 @click.option("--json", "json_output", is_flag=True, help="Print result paths as JSON.")
 def plot(
@@ -54,6 +57,7 @@ def plot(
     output_dir: Path | None,
     start_date: str | None,
     end_date: str | None,
+    one_column: bool,
     verbose: bool,
     json_output: bool,
 ) -> None:
@@ -67,6 +71,7 @@ def plot(
             verbose=verbose,
             start_date=start_date,
             end_date=end_date,
+            columns=1 if one_column else 2,
         ).plot_all()
     except DatasetError as exc:
         raise click.ClickException(str(exc)) from exc

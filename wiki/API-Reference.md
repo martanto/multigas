@@ -11,7 +11,7 @@ required.
 ## Plotting
 
 `multigas.plot.Plot(source, dataset_type=None, save_as="PNG", output_dir=None,
-verbose=False, start_date=None, end_date=None)` accepts a CSV path or
+verbose=False, start_date=None, end_date=None, columns=2)` accepts a CSV path or
 `MultiGasData`. CSV paths require a
 dataset type and load through `read_file(normalize=True)`; `MultiGasData`
 provides its own type. A conflicting supplied type raises `DatasetError`.
@@ -22,6 +22,16 @@ Currently only `DatasetType.SIX_HOURS` (`6h`) is supported. `save_as` accepts
 date-only end values include the full day. Call parameterless `plot_all()` to
 render; it raises `DatasetError` with a clear message if the configured range
 has no data. Missing required columns raise `ColumnError`.
+
+`columns` accepts 1 (ten stacked panels) or 2 (default, five rows); invalid
+values raise `ValueError`. This applies to PNG, PDF, and HTML, and to both
+output periods. For example:
+
+```python
+from multigas.plot import Plot
+
+paths = Plot("data/site_a.csv", "6h", columns=1).plot_all()
+```
 
 See [Plot](Plot.md) for the panel and source-column inventory.
 

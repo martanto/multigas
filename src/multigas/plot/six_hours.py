@@ -208,7 +208,8 @@ def caption(data: MultiGasData, frame: pd.DataFrame, off_scale_note: str) -> str
 
 
 def render(
-    data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp, path: Path, save_as: str
+    data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp, path: Path, save_as: str,
+    columns: int = 2,
 ) -> Path:
     """Render one date window using the requested backend.
 
@@ -218,6 +219,7 @@ def render(
         end: Inclusive end timestamp.
         path: Destination file path.
         save_as: Renderer format, ``PNG``, ``PDF``, or ``HTML``.
+        columns: Number of panel columns, 1 or 2.
 
     Raises:
         PlotError: If the window is empty or the renderer fails.
@@ -233,9 +235,9 @@ def render(
         raise PlotError(f"No data available in plot period {start} to {end}")
     try:
         if save_as in {"PNG", "PDF"}:
-            _render_static(data, frame, start, end, path, save_as)
+            _render_static(data, frame, start, end, path, save_as, columns)
         else:
-            _render_html(data, frame, start, end, path)
+            _render_html(data, frame, start, end, path, columns)
     except Exception as exc:
         raise PlotError(f"Could not render {save_as} plot {path}: {exc}") from exc
     return path
@@ -256,6 +258,7 @@ def _render_static(
     end: pd.Timestamp,
     path: Path,
     save_as: str,
+    columns: int = 2,
 ) -> None:
     """Render the ten-panel figure to PNG or vector PDF with matplotlib."""
     import matplotlib
@@ -270,6 +273,8 @@ def _render_static(
     from matplotlib.layout_engine import ConstrainedLayoutEngine
 
     width, height = (size / 25.4 for size in FIGURE_SIZE_MM)
+    if columns == 1:
+        height *= 2
     caption_size = 6.2
     spans = gaps(frame.index)
     text = fill(
@@ -403,7 +408,7 @@ def _render_static(
         sns.axes_style("ticks"),
     ):
         figure, axes_grid = plt.subplots(
-            5, 2, figsize=(width, height), sharex=True, layout=engine
+            10 // columns, columns, figsize=(width, height), sharex=True, layout=engine
         )
         try:
             axes = axes_grid.ravel()
@@ -493,7 +498,7 @@ def _render_static(
 
             pad = max((end - start) * 0.015, pd.Timedelta(hours=6))
             axes[9].set_xlim(start - pad, end + pad)
-            for date_axis in axes[8:10]:
+            for date_axis in axes[-columns:]:
                 date_axis.set_xlabel("Date", labelpad=3, fontsize=6.6)
                 locator = mdates.AutoDateLocator(minticks=4, maxticks=8)
                 date_axis.xaxis.set_major_locator(locator)
@@ -536,6 +541,7 @@ def _render_html(
     start: pd.Timestamp,
     end: pd.Timestamp,
     path: Path,
+    columns: int = 2,
 ) -> None:
     """Render the ten-panel figure to interactive HTML with Bokeh."""
     from bokeh.models import (
@@ -631,7 +637,7 @@ def _render_html(
                 *y_axis(panel_values, panel.is_ratio),
             )
             draw(panel_plot, panel_values, panel.color, "circle")
-        if index == 8:
+        if index >= 10 - columns:
             panel_plot.xaxis.axis_label = "Date"
         else:
             # Only the bottom row carries date labels; ticks stay on every panel.
@@ -685,7 +691,7 @@ def _render_html(
     save(
         column(
             Div(text=f"<h3 style='margin:4px 0'>{data.basename} | {period}</h3>"),
-            gridplot(plots, ncols=2, toolbar_location="right"),
+            gridplot(plots, ncols=columns, toolbar_location="right"),
             Div(text=f"<p style='max-width:1240px'>{text}</p>"),
         )
     )
