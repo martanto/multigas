@@ -11,6 +11,46 @@ in one column for PNG, PDF, or HTML. The Python `columns` argument accepts
 only 1 or 2. It creates one figure for the selected date range and a second
 figure for its trailing three months.
 
+## Figure dimensions
+
+Both CLI commands accept `--width` and `--height`. The Python APIs `Plot`
+and `plot_columns` accept matching optional `width` and
+`height` parameters (default `None`). Sizes are **millimetres for the whole
+figure**, including titles and captions. Either dimension can be supplied
+independently; the other keeps its format/layout default. Aspect ratio is
+not preserved automatically, and explicit height overrides automatic height,
+including `--one-column`. Six-hour plots use the same sizes for both periods.
+
+```bash
+uv run multigas plot data/site_a.csv --dataset-type 6h --width 300 --height 220
+uv run multigas plot columns Avg_SO2 --source data/site_a.csv \
+  --dataset-type 6h --width 200 --height 150
+```
+
+```python
+from multigas.plot import Plot, plot_columns
+
+paths = Plot(data, width=300, height=220).plot_all()
+figure = plot_columns(data, ["Avg_SO2"], width=200, height=150)
+```
+
+PNG/PDF sizes convert to inches using `mm / 25.4`; fonts and DPI stay fixed
+(300 dpi for gas plots). Custom sizes export the exact canvas without tight
+cropping. Six-hour static defaults remain
+280 × 190 mm (two columns) or 280 × 380 mm (one column). Selected-column
+static defaults are 280 mm wide with height determined by panel count and
+caption.
+
+HTML uses `round(mm * 96 / 25.4)` CSS pixels for each requested outer
+dimension. Panels share the remaining space after titles, toolbar, captions,
+and spacing. Captions reflow to the available width. Without size arguments,
+existing HTML sizing is preserved. Typography stays unchanged in every format.
+
+Sizes must be finite, positive real numbers. Python rejects booleans, zero,
+negative values, NaN and infinity with `ValueError`; CLI errors identify the
+invalid option. A size too small for the layout causes `PlotError` during
+rendering. Completeness charts and `extract_daily` have no size parameters.
+
 ## Selected-column figures
 
 ```bash
@@ -52,7 +92,7 @@ raise clear errors. Slicing happens before rendering and finite-value counts.
 
 Each selected column gets a panel in input order. The default uses two
 columns, while `--one-column` / `layout_columns=1` stacks them; a single
-selection always uses one column. Figure height follows panel count. The
+selection always uses one column. Default figure height follows panel count. The
 lowest occupied panel in each grid column carries date labels. Recognized
 gas series retain their chemical labels and fixed palette colors; other
 names are literal and receive stable colors from that palette.
@@ -127,7 +167,7 @@ without a time includes the full calendar day. A range with no rows raises
 | One column | `columns=1` | `--one-column` | Ten rows, panels (a) through (j) from top to bottom. |
 
 The selection applies to both output periods and all three formats. PNG and
-PDF keep the same width and double the figure height in one-column mode.
+PDF keep the same default width and double the default height in one-column mode.
 HTML stacks the same linked panels vertically. Date labels appear only on
 the bottom row. Python raises `ValueError` for an invalid `columns` value.
 Both layouts use the same output filenames; rendering again in the same

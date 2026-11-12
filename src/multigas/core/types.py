@@ -48,8 +48,8 @@ def _raise_missing_value(cls: EnumMeta, value: object) -> None:
         >>> _raise_missing_value(DatasetType, "bad")
         ValueError: 'bad' is not a valid DatasetType. ...
     """
-    values = ", ".join(f"`{m.value}`" for m in cls)  # ty:ignore[unresolved-attribute]
-    attrs = ", ".join(f"`{cls.__name__}.{m.name}`" for m in cls)  # ty:ignore[unresolved-attribute]
+    values = ", ".join(f"`{m.value}`" for m in cls)  # ty:ignore[missing-attribute]
+    attrs = ", ".join(f"`{cls.__name__}.{m.name}`" for m in cls)  # ty:ignore[missing-attribute]
     raise ValueError(
         f"{value!r} is not a valid {cls.__name__}. Valid values: {values} or {attrs}"
     )

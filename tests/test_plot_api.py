@@ -59,7 +59,7 @@ def test_plot_all_slices_inclusive_dates(monkeypatch) -> None:
 
     captured: list[tuple[pd.Timestamp, pd.Timestamp]] = []
 
-    def fake_render(data, start, end, path, save_as, columns=2):
+    def fake_render(data, start, end, path, save_as, columns=2, width=None, height=None):
         captured.append((start, end))
         return path
 

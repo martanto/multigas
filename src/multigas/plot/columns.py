@@ -23,6 +23,7 @@ from multigas.plot.six_hours import (
     EMPTY_MESSAGE,
 )
 from multigas.core.exceptions import PlotError, ColumnError, DatasetError
+from multigas.plot.dimensions import validate_dimension
 from multigas.utils.validation import check_columns_exist
 from multigas.data.multigas_data import MultiGasData
 
@@ -130,9 +131,7 @@ def _caption(data: MultiGasData, frame: pd.DataFrame) -> str:
     if "Avg_SO2" in frame:
         so2: pd.Series = frame["Avg_SO2"]
         if so2.median() <= 0:
-            text += (
-                "Median SO2 is at or below zero (sensor baseline); little real SO2 signal."
-            )
+            text += "Median SO2 is at or below zero (sensor baseline); little real SO2 signal."
     return text.strip()
 
 
@@ -146,6 +145,8 @@ def plot_columns(
     start_date: str | pd.Timestamp | None = None,
     end_date: str | pd.Timestamp | None = None,
     layout_columns: int = 2,
+    width: float | None = None,
+    height: float | None = None,
 ) -> Path:
     """Render one observation-only panel per selected numeric column.
 
@@ -159,12 +160,14 @@ def plot_columns(
         start_date: Optional inclusive starting timestamp/date.
         end_date: Optional inclusive ending timestamp; date strings include all day.
         layout_columns: Panel columns, 1 or 2; a single panel always uses 1.
+        width: Whole-figure width in mm; None retains the format default.
+        height: Whole-figure height in mm; None retains automatic height.
 
     Returns:
         Path: Saved <output-dir>/figures/<source-stem>-columns.<extension>.
 
     Raises:
-        ValueError: Invalid names, format, layout or missing path dataset type.
+        ValueError: Invalid dimensions, names, format, layout or path dataset type.
         ColumnError: Any requested columns are missing or nonnumeric.
         DatasetError: Conflicting type, invalid dates or no selected records.
         LoaderError: Source loading fails.
@@ -173,6 +176,8 @@ def plot_columns(
     Example:
         >>> plot_columns("site.csv", ["Avg_CO2_lowpass", "Avg_SO2"], "6h")
     """
+    width = validate_dimension(width, "width")
+    height = validate_dimension(height, "height")
     names = parse_column_names(column_names)
     if isinstance(layout_columns, bool) or layout_columns not in (1, 2):
         raise ValueError("layout_columns must be 1 or 2")
@@ -222,15 +227,22 @@ def plot_columns(
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if save_as == "HTML":
-            _render_html(frame, path, columns, text)
+            _render_html(frame, path, columns, text, width, height)
         else:
-            _render_static(frame, path, columns, text)
+            _render_static(frame, path, columns, text, width, height)
     except Exception as exc:
         raise PlotError(f"Could not render {save_as} plot {path}: {exc}") from exc
     return path
 
 
-def _render_static(frame: pd.DataFrame, path: Path, columns: int, text: str) -> None:
+def _render_static(
+    frame: pd.DataFrame,
+    path: Path,
+    columns: int,
+    text: str,
+    width: float | None = None,
+    height: float | None = None,
+) -> None:
     """Render a variable panel grid with a reserved, wrapped caption band."""
     import matplotlib
 
@@ -240,11 +252,22 @@ def _render_static(frame: pd.DataFrame, path: Path, columns: int, text: str) -> 
     import matplotlib.pyplot as plt
     from matplotlib.layout_engine import ConstrainedLayoutEngine
 
+    from multigas.plot.dimensions import check_static_space, check_static_artists
+
+    custom_size = width is not None or height is not None
+    width = (280 if width is None else width) / 25.4
     rows = ceil(len(frame.columns) / columns)
-    wrapped = fill(text, width=205, break_long_words=True, break_on_hyphens=False)
+    wrapped = fill(
+        text,
+        width=max(1, int(205 * width / (280 / 25.4))),
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
     caption_inches = (wrapped.count("\n") + 1) * 6.2 * 1.25 / 72 + 0.15
-    height = rows * 1.4 + 0.65 + caption_inches
-    bottom = caption_inches / height
+    height = rows * 1.4 + 0.65 + caption_inches if height is None else height / 25.4
+    if custom_size:
+        check_static_space(width, height, rows, columns, caption_inches)
+    bottom = caption_inches / height + (0.025 if custom_size else 0)
     with (
         plt.rc_context(
             {
@@ -260,6 +283,7 @@ def _render_static(frame: pd.DataFrame, path: Path, columns: int, text: str) -> 
                 "ytick.major.width": 0.55,
                 "pdf.fonttype": 42,
                 "ps.fonttype": 42,
+                "savefig.bbox": None,
                 "text.color": TEXT_COLOR,
                 "axes.titlecolor": TEXT_COLOR,
             }
@@ -271,7 +295,7 @@ def _render_static(frame: pd.DataFrame, path: Path, columns: int, text: str) -> 
             columns,
             squeeze=False,
             sharex=True,
-            figsize=(280 / 25.4, height),
+            figsize=(width, height),
             layout=ConstrainedLayoutEngine(
                 hspace=0.18,
                 wspace=0.06,
@@ -346,12 +370,21 @@ def _render_static(frame: pd.DataFrame, path: Path, columns: int, text: str) -> 
             axes[0].set_xlim(start - pad, end + pad)
             fig.text(0.025, 0.98, path.stem, va="top", fontsize=8.5, fontweight="bold")
             fig.text(0.025, 0.025, wrapped, va="bottom", fontsize=6.2, linespacing=1.25)
+            if custom_size:
+                check_static_artists(fig)
             fig.savefig(path, dpi=PNG_DPI, facecolor="white")
         finally:
             plt.close(fig)
 
 
-def _render_html(frame: pd.DataFrame, path: Path, columns: int, text: str) -> None:
+def _render_html(
+    frame: pd.DataFrame,
+    path: Path,
+    columns: int,
+    text: str,
+    width: float | None = None,
+    height: float | None = None,
+) -> None:
     """Render linked datetime panels with finite-value hover and a caption."""
     from bokeh.embed import file_html
     from bokeh.models import Div, Title, Range1d, HoverTool
@@ -416,4 +449,8 @@ def _render_html(frame: pd.DataFrame, path: Path, columns: int, text: str) -> No
         gridplot(plots, ncols=columns),
         Div(text=f"<p style='max-width:1100px'>{escape(text)}</p>"),
     )
+    if width is not None or height is not None:
+        from multigas.plot.dimensions import size_html
+
+        layout = size_html(plots, path.stem, text, columns, width, height, 1130, 220)
     path.write_text(file_html(layout, INLINE, path.stem), encoding="utf-8")

@@ -10,7 +10,17 @@ from rich.console import Console
 
 from multigas.plot import Plot
 from multigas.core.types import DatasetType
-from multigas.core.exceptions import DatasetError, MultigasException
+from multigas.core.exceptions import MultigasException
+from multigas.plot.dimensions import validate_dimension
+
+
+def _dimension(ctx: click.Context, param: click.Parameter,
+               value: float | None) -> float | None:
+    """Validate dimensions during Click parsing, preserving the option name."""
+    try:
+        return validate_dimension(value, param.name or "dimension")
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), ctx=ctx, param=param) from exc
 
 
 @click.command(help="Create standard six-hour multi-gas plots from a CSV data file.")
@@ -50,6 +60,10 @@ from multigas.core.exceptions import DatasetError, MultigasException
     help="Stack all ten panels in one column.",
 )
 @click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
+@click.option("--width", type=float, callback=_dimension,
+              help="Whole-figure width in millimetres, including titles and captions.")
+@click.option("--height", type=float, callback=_dimension,
+              help="Whole-figure height in millimetres; overrides automatic height.")
 @click.option("--json", "json_output", is_flag=True, help="Print result paths as JSON.")
 def legacy_plot(
     input_path: Path,
@@ -61,6 +75,8 @@ def legacy_plot(
     one_column: bool,
     verbose: bool,
     json_output: bool,
+    width: float | None,
+    height: float | None,
 ) -> None:
     """Plot INPUT_PATH as full-period and trailing-three-month figures."""
     try:
@@ -73,8 +89,10 @@ def legacy_plot(
             start_date=start_date,
             end_date=end_date,
             columns=1 if one_column else 2,
+            width=width,
+            height=height,
         ).plot_all()
-    except DatasetError as exc:
+    except (MultigasException, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
     result = {name: str(path) for name, path in outputs.items()}
     if json_output:
@@ -132,6 +150,10 @@ plot.add_command(legacy_plot, "standard")
 )
 @click.option("--one-column", is_flag=True, help="Stack selected panels in one column.")
 @click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
+@click.option("--width", type=float, callback=_dimension,
+              help="Whole-figure width in millimetres, including titles and captions.")
+@click.option("--height", type=float, callback=_dimension,
+              help="Whole-figure height in millimetres; overrides automatic height.")
 @click.option("--json", "json_output", is_flag=True, help="Print figure path as JSON.")
 def columns(
     column_names: tuple[str, ...],
@@ -144,6 +166,8 @@ def columns(
     one_column: bool,
     verbose: bool,
     json_output: bool,
+    width: float | None,
+    height: float | None,
 ) -> None:
     """Render one time-series panel per COLUMN_NAMES (spaces or commas)."""
     from multigas.plot import plot_columns
@@ -159,6 +183,8 @@ def columns(
             start_date,
             end_date,
             layout_columns=1 if one_column else 2,
+            width=width,
+            height=height,
         )
     except (MultigasException, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc

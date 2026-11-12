@@ -52,3 +52,16 @@ The six-hour `Plot` API accepts `columns=1` for ten vertically stacked panels
 or `columns=2` (default) for five rows. CLI `--one-column` selects the stacked
 layout for PNG, PDF, and HTML, for both output periods. Static figures are
 280 x 190 mm by default and 280 x 380 mm with one column.
+
+`Plot` and `plot_columns` append optional `width=None` and `height=None` in millimetres
+for the whole figure, including titles and captions. Both plotting CLI commands
+expose `--width` / `--height`. Dimensions
+are independent: omitted values retain format/layout defaults, explicit height
+overrides automatic height. Shared backend-free `plot/dimensions.py` helpers
+validate finite positive real values (rejecting booleans). Invalid arguments
+raise `ValueError`; undersized layouts raise `PlotError` during rendering.
+Static custom exports use
+`mm / 25.4` inches without tight cropping; HTML uses
+`round(mm * 96 / 25.4)` CSS pixels for the outer canvas and budgets room for
+titles, toolbar and reflowed captions. Keep fonts/DPI unchanged and reject
+layouts that cannot fit rather than enlarging the requested canvas.

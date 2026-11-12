@@ -54,6 +54,7 @@ multigas/
 │   ├── plot/
 │   │   ├── __init__.py          # Lazy Plot, plot_columns, plot_completeness exports
 │   │   ├── columns.py           # Selected-column observation-only renderers
+│   │   ├── dimensions.py        # Size validation and shared layout budgets
 │   │   ├── plot.py              # Standard six-hour plotting API
 │   │   ├── six_hours.py         # Ten-panel layout and renderers
 │   │   └── plot_completeness.py # plot_completeness — daily-completeness PNG
