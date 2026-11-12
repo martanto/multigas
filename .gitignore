@@ -191,3 +191,7 @@ changelogs/
 *.ipynb
 /.agents
 /.github
+/frontend/node_modules
+/.playwright-cli
+/.playwright-mcp
+/.openidea
