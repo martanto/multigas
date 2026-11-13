@@ -60,6 +60,11 @@ def _dimension(ctx: click.Context, param: click.Parameter,
     help="Stack all ten panels in one column.",
 )
 @click.option("--verbose", is_flag=True, help="Emit informational loading logs.")
+@click.option(
+    "--log-scale",
+    is_flag=True,
+    help="Use log axes for positive ratios in panels (a)-(e); default is linear.",
+)
 @click.option("--width", type=float, callback=_dimension,
               help="Whole-figure width in millimetres, including titles and captions.")
 @click.option("--height", type=float, callback=_dimension,
@@ -77,6 +82,7 @@ def legacy_plot(
     json_output: bool,
     width: float | None,
     height: float | None,
+    log_scale: bool,
 ) -> None:
     """Plot INPUT_PATH as full-period and trailing-three-month figures."""
     try:
@@ -91,6 +97,7 @@ def legacy_plot(
             columns=1 if one_column else 2,
             width=width,
             height=height,
+            log_scale=log_scale,
         ).plot_all()
     except (MultigasException, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc

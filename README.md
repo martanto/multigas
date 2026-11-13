@@ -212,8 +212,12 @@ The columns
 use a compact gutter and retain outer padding. Choose `--save-as PDF` for editable
 vector artwork. Faint dashed major gridlines sit behind the data; units are explained in the
 caption. Each panel overlays a gap-aware 7-day rolling median on the recorded
-points and reports its valid-reading count. Wide-ranging ratios use log axes,
-and far outliers are marked on the axis edge instead of flattening the record.
+points and reports its valid-reading count. Ratio panels (a)-(e) use linear
+axes by default. Use `Plot(..., log_scale=True)` or CLI `--log-scale` to
+request logarithmic axes for strictly positive ratios, regardless of range;
+panels containing zero or negative ratios stay linear. Panels (f)-(j)
+remain linear. The scale option applies to both periods and PNG/PDF/HTML.
+Far outliers are marked on the axis edge instead of flattening the record.
 Grey bands mark logger outages longer than two days, and the caption warns
 when the SO2 baseline is at or below zero. PNG and PDF default to 280 mm x 190 mm
 with two columns (fits A4 landscape with margins), or 280 mm x 380 mm

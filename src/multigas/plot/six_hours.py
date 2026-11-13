@@ -92,17 +92,20 @@ def trend(values: pd.Series) -> pd.Series | None:
     return rolled
 
 
-def y_axis(values: pd.Series, is_ratio: bool) -> tuple[bool, float, float]:
+def y_axis(
+    values: pd.Series, is_ratio: bool, log_scale: bool = False
+) -> tuple[bool, float, float]:
     """Choose a readable y-scale and robust limits for one series.
 
-    Ratios that are strictly positive and span at least a decade use a log
-    axis. On either side, an extreme is excluded from the axis only when it
+    Ratios that are strictly positive use a log axis only when requested.
+    On either side, an extreme is excluded from the axis only when it
     lies more than twice the 1-99 percentile span beyond that span, so a
     handful of faulty readings cannot flatten the rest of the record.
 
     Args:
         values: Non-null, non-empty readings.
         is_ratio: Whether the series is a dimensionless gas ratio.
+        log_scale: Request log axes for positive ratios; default is linear.
 
     Returns:
         tuple[bool, float, float]: ``(use_log, lower, upper)`` axis settings.
@@ -110,8 +113,7 @@ def y_axis(values: pd.Series, is_ratio: bool) -> tuple[bool, float, float]:
     Example:
         >>> use_log, lower, upper = y_axis(frame["Avg_CO2_lowpass"].dropna(), False)
     """
-    low, high = float(values.min()), float(values.max())
-    use_log = is_ratio and low > 0 and high / low >= 10
+    use_log = log_scale and is_ratio and float(values.min()) > 0
     scaled = values.map(np.log10) if use_log else values
     low, high = float(scaled.min()), float(scaled.max())
     core_low, core_high = (float(q) for q in scaled.quantile([0.01, 0.99]))
@@ -167,13 +169,17 @@ def log_ticks(lower: float, upper: float) -> list[float]:
     return [tick for tick in ticks if lower <= tick <= upper]
 
 
-def caption(data: MultiGasData, frame: pd.DataFrame, off_scale_note: str) -> str:
+def caption(
+    data: MultiGasData, frame: pd.DataFrame, off_scale_note: str,
+    log_scale: bool = False,
+) -> str:
     """Build the explanatory caption shared by every renderer.
 
     Args:
         data: Dataset being plotted.
         frame: Non-empty rows of the plotted window.
         off_scale_note: Renderer-specific sentence about off-axis values.
+        log_scale: Whether log axes were requested for positive ratios.
 
     Returns:
         str: Single-paragraph caption text.
@@ -194,10 +200,14 @@ def caption(data: MultiGasData, frame: pd.DataFrame, off_scale_note: str) -> str
         if frame["Avg_SO2"].median() <= 0
         else ""
     )
+    scale_note = (
+        "logarithmic axes where all readings are positive, otherwise linear"
+        if log_scale else "linear axes"
+    )
     return (
         f"Six-hour observations from {data.basename}, {start:%Y-%m-%d} to "
         f"{end:%Y-%m-%d}. Panels (a)-(e) show gas ratios (dimensionless), on "
-        "logarithmic axes where a ratio spans a decade or more; (f)-(i) show "
+        f"{scale_note}; (f)-(i) show "
         "molar mixing ratios (unit not specified in the source TOA5 units row); "
         "(j) shows SO2 and H2S proportions (%). Points are recorded sample-cycle "
         f"values; lines are {TREND_DAYS}-day centred rolling medians of daily "
@@ -212,6 +222,7 @@ def render(
     columns: int = 2,
     width: float | None = None,
     height: float | None = None,
+    log_scale: bool = False,
 ) -> Path:
     """Render one date window using the requested backend.
 
@@ -224,6 +235,7 @@ def render(
         columns: Number of panel columns, 1 or 2.
         width: Optional whole-figure width in mm.
         height: Optional whole-figure height in mm.
+        log_scale: Use log axes for positive ratios; default is linear.
 
     Raises:
         PlotError: If the window is empty or the renderer fails.
@@ -239,9 +251,11 @@ def render(
         raise PlotError(f"No data available in plot period {start} to {end}")
     try:
         if save_as in {"PNG", "PDF"}:
-            _render_static(data, frame, start, end, path, save_as, columns, width, height)
+            _render_static(
+                data, frame, start, end, path, save_as, columns, width, height, log_scale
+            )
         else:
-            _render_html(data, frame, start, end, path, columns, width, height)
+            _render_html(data, frame, start, end, path, columns, width, height, log_scale)
     except Exception as exc:
         raise PlotError(f"Could not render {save_as} plot {path}: {exc}") from exc
     return path
@@ -265,6 +279,7 @@ def _render_static(
     columns: int = 2,
     width: float | None = None,
     height: float | None = None,
+    log_scale: bool = False,
 ) -> None:
     """Render the ten-panel figure to PNG or vector PDF with matplotlib."""
     import matplotlib
@@ -291,6 +306,7 @@ def _render_static(
             data,
             frame,
             "Open triangles mark values beyond the displayed axis range.",
+            log_scale=log_scale,
         ),
         width=max(1, int(width * 138 / caption_size)),
         break_on_hyphens=False,
@@ -433,7 +449,7 @@ def _render_static(
                     mark_empty(panel_axis)
                 else:
                     use_log, lower_limit, upper_limit = y_axis(
-                        panel_values, panel.is_ratio
+                        panel_values, panel.is_ratio, log_scale
                     )
                     if use_log:
                         panel_axis.set_yscale("log")
@@ -560,6 +576,7 @@ def _render_html(
     columns: int = 2,
     width: float | None = None,
     height: float | None = None,
+    log_scale: bool = False,
 ) -> None:
     """Render the ten-panel figure to interactive HTML with Bokeh."""
     from bokeh.models import (
@@ -652,7 +669,7 @@ def _render_html(
         else:
             panel_plot = new_figure(
                 f"{panel_title}   (n = {len(panel_values):,})",
-                *y_axis(panel_values, panel.is_ratio),
+                *y_axis(panel_values, panel.is_ratio, log_scale),
             )
             draw(panel_plot, panel_values, panel.color, "circle")
         if index >= 10 - columns:
@@ -705,6 +722,7 @@ def _render_html(
         frame,
         "Extreme values can lie outside the initial y-range; pan or zoom to "
         "reach them.",
+        log_scale=log_scale,
     )
     if width is not None or height is not None:
         from multigas.plot.dimensions import size_html

@@ -199,8 +199,16 @@ titles with chemical subscripts, and marker shapes provide cues beyond color.
   sample-cycle values. The darker line is a 7-day centred rolling median of
   daily medians. It needs at least three days with data inside the window, so
   it breaks across data gaps instead of bridging them.
-- **Ratio axes.** A ratio panel uses a logarithmic y-axis when its values are
-  all positive and span a decade or more; otherwise it stays linear.
+- **Ratio axes.** Panels (a)-(e) use linear y-axes by default. Set
+  `Plot(..., log_scale=True)` or pass `--log-scale` to the standard six-hour
+  CLI command to use logarithmic axes for ratios whose readings are all
+  positive, regardless of range. A panel containing zero or negative
+  readings stays linear to preserve those observations. This applies to
+  both periods and PNG, PDF, and HTML; panels (f)-(j) remain linear.
+
+  ```bash
+  uv run multigas plot data/site_a.csv --dataset-type 6h --log-scale
+  ```
 - **Robust y-limits.** An extreme is left off the axis only when it lies more
   than twice the 1st-99th percentile span beyond that span (for example
   0-valued CO2 fault readings). PNG and PDF draw such values as open triangles
