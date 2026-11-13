@@ -399,7 +399,7 @@ class DataLoader:
         normalized_path = self.normalize_dir / f"{self.basename}.csv"
 
         should_write = True
-        if source_path is not None and normalized_path.exists():
+        if source_path and normalized_path.exists():
             target_mtime_ns = normalized_path.stat().st_mtime_ns
             source_mtime_ns = source_path.stat().st_mtime_ns
             if target_mtime_ns >= source_mtime_ns:

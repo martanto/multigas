@@ -1,4 +1,9 @@
-"""Observation-only time-series panels for arbitrary numeric columns."""
+"""Render observation-only time-series panels for numeric columns.
+
+Example:
+    >>> plot_columns("site.csv", ["Avg_CO2_lowpass", "Avg_SO2"], "6h")
+    WindowsPath('output/figures/site-columns.png')
+"""
 
 from html import escape
 from math import ceil
@@ -36,7 +41,8 @@ def parse_column_names(column_names: str | Sequence[str]) -> list[str]:
     """Split comma-separated names, trim whitespace and deduplicate in order.
 
     Args:
-        column_names: One name/list string or a sequence of names/list strings.
+        column_names (str | Sequence[str]): One comma-separated string or a
+            sequence of strings.
 
     Returns:
         list[str]: Non-empty, distinct column names in input order.
@@ -50,10 +56,12 @@ def parse_column_names(column_names: str | Sequence[str]) -> list[str]:
     """
     tokens = [column_names] if isinstance(column_names, str) else column_names
     names = [name.strip() for token in tokens for name in token.split(",")]
+
     if not names or any(not name for name in names):
         raise ValueError(
             "Provide one or more non-empty column names; remove empty names."
         )
+
     return list(dict.fromkeys(names))
 
 
@@ -62,29 +70,50 @@ def _select_dates(
     start_date: str | pd.Timestamp | None,
     end_date: str | pd.Timestamp | None,
 ) -> pd.DataFrame:
-    """Apply inclusive bounds, expanding a date-only end to its full day."""
+    """Apply inclusive bounds and expand a date-only end to its full day.
+
+    Args:
+        frame (pd.DataFrame): Time-indexed observations to filter.
+        start_date (str | pd.Timestamp | None): Inclusive lower date bound.
+        end_date (str | pd.Timestamp | None): Inclusive upper date bound.
+
+    Returns:
+        pd.DataFrame: Chronologically sorted rows within the selected bounds.
+
+    Raises:
+        DatasetError: If the index or date range is invalid, or no rows match.
+    """
     index = frame.index
+
     if not isinstance(index, pd.DatetimeIndex) or index.hasnans:
         raise DatasetError("Plot data must have a valid DatetimeIndex")
+
     try:
-        start = pd.Timestamp(start_date) if start_date is not None else None
-        end = pd.Timestamp(end_date) if end_date is not None else None
-        if (start is not None and pd.isna(start)) or (end is not None and pd.isna(end)):
+        start = pd.Timestamp(start_date) if start_date else None
+        end = pd.Timestamp(end_date) if end_date else None
+
+        if (start and pd.isna(start)) or (end and pd.isna(end)):
             raise ValueError("Date bounds must not be NaT")
+
         if isinstance(end_date, str) and len(end_date.strip()) == 10:
             end = pd.Timestamp(end_date) + pd.DateOffset(days=1) - pd.Timedelta(1, "ns")
+
         # Treat naive bounds as local dates for a timezone-aware input.
         timezone = index.tz
-        if timezone is not None:
-            if start is not None and start.tzinfo is None:
+
+        if timezone:
+            if start and start.tzinfo is None:
                 start = start.tz_localize(timezone)
-            if end is not None and end.tzinfo is None:
+            if end and end.tzinfo is None:
                 end = end.tz_localize(timezone)
-        if start is not None and end is not None and start > end:
+
+        if start and end and start > end:
             raise ValueError("start_date must be on or before end_date")
+
         selected = frame.sort_index().loc[start:end]
     except (ValueError, TypeError, OverflowError) as exc:
         raise DatasetError(f"Invalid date range: {exc}") from exc
+
     if selected.empty:
         raise DatasetError(
             "No records in the selected date range; choose overlapping dates."
@@ -93,20 +122,39 @@ def _select_dates(
 
 
 def _series_style(name: str) -> tuple[str, str]:
-    """Return a chemical label and stable palette color, or the literal name."""
+    """Return a chemical label and stable color for a column.
+
+    Args:
+        name (str): DataFrame column name.
+
+    Returns:
+        tuple[str, str]: Display label and hexadecimal color.
+    """
     for panel in PANELS:
         if panel.column == name or (name == "H2O" and panel.column == "Avg_H2O"):
             return panel.html_label, panel.color
+
     for gas, color in (("SO2", "#B75226"), ("H2S", "#9C792C")):
         if name == f"Avg_{gas}_proportion":
             return f"{gas.replace('2', '₂')} proportion (%)", color
+
     slot = int.from_bytes(sha256(name.encode()).digest()[:4], "big") % len(PANELS)
+
     return name, PANELS[slot].color
 
 
 def _caption(data: MultiGasData, frame: pd.DataFrame) -> str:
-    """Describe the actual window, exclusions and relevant gas caveats."""
+    """Describe the plotted window, exclusions, and gas caveats.
+
+    Args:
+        data (MultiGasData): Source dataset and provenance.
+        frame (pd.DataFrame): Selected columns and date window.
+
+    Returns:
+        str: Single-paragraph figure caption.
+    """
     invalid = int(frame.isna().sum().sum())
+
     text = (
         f"Source: {data.source_path}. Selected observations: {frame.index.min()} to "
         f"{frame.index.max()}. Observations only; linear axes show the full finite "
@@ -114,24 +162,29 @@ def _caption(data: MultiGasData, frame: pd.DataFrame) -> str:
         f"Excluded {invalid} missing or nonfinite readings across selected columns. "
         "n counts finite readings. Units are not inferred from column names. "
     )
+
     gas_columns = [
         name
         for name in frame
         if any(g in str(name) for g in ("CO2", "SO2", "H2S", "H2O"))
     ]
+
     if gas_columns:
         text += (
             "Gas mixing-ratio units may be unspecified in the source TOA5 units row. "
         )
+
     if any(
         "H2S" in str(name) or "S_tot" in str(name) or "proportion" in str(name)
         for name in frame
     ):
         text += "H2S values are not corrected for SO2 cross-sensitivity. "
+
     if "Avg_SO2" in frame:
         so2: pd.Series = frame["Avg_SO2"]
         if so2.median() <= 0:
             text += "Median SO2 is at or below zero (sensor baseline); little real SO2 signal."
+
     return text.strip()
 
 
@@ -151,17 +204,25 @@ def plot_columns(
     """Render one observation-only panel per selected numeric column.
 
     Args:
-        source: CSV path (normalized on load) or existing MultiGasData.
-        column_names: Ordered names, optionally comma-separated; duplicates removed.
-        dataset_type: Required for paths; inferred from loaded data otherwise.
-        save_as: PNG, PDF or HTML (case insensitive).
-        output_dir: Root containing figures; defaults to ./output.
-        verbose: Enable loading logs.
-        start_date: Optional inclusive starting timestamp/date.
-        end_date: Optional inclusive ending timestamp; date strings include all day.
-        layout_columns: Panel columns, 1 or 2; a single panel always uses 1.
-        width: Whole-figure width in mm; None retains the format default.
-        height: Whole-figure height in mm; None retains automatic height.
+        source (str | Path | MultiGasData): CSV path or loaded dataset.
+        column_names (str | Sequence[str]): Ordered names, optionally
+            comma-separated; duplicates are removed.
+        dataset_type (DatasetType | str | None, optional): Dataset type,
+            required for paths and inferred for loaded data.
+        save_as (str, optional): Output format: ``PNG``, ``PDF``, or ``HTML``.
+            Defaults to ``"PNG"``.
+        output_dir (str | Path | None, optional): Output root containing the
+            ``figures`` directory. Defaults to ``./output``.
+        verbose (bool, optional): Whether loading emits messages. Defaults to
+            ``False``.
+        start_date (str | pd.Timestamp | None, optional): Inclusive lower date
+            bound.
+        end_date (str | pd.Timestamp | None, optional): Inclusive upper date
+            bound; date-only strings include the full day.
+        layout_columns (int, optional): Number of panel columns, ``1`` or ``2``.
+            Defaults to ``2``.
+        width (float | None, optional): Whole-figure width in millimetres.
+        height (float | None, optional): Whole-figure height in millimetres.
 
     Returns:
         Path: Saved <output-dir>/figures/<source-stem>-columns.<extension>.
@@ -174,22 +235,29 @@ def plot_columns(
         PlotError: Export fails.
 
     Example:
-        >>> plot_columns("site.csv", ["Avg_CO2_lowpass", "Avg_SO2"], "6h")
+        >>> path = plot_columns(
+        ...     "site.csv", ["Avg_CO2_lowpass", "Avg_SO2"], "6h"
+        ... )
+        >>> path.name
+        'site-columns.png'
     """
     width = validate_dimension(width, "width")
     height = validate_dimension(height, "height")
     names = parse_column_names(column_names)
+
     if isinstance(layout_columns, bool) or layout_columns not in (1, 2):
         raise ValueError("layout_columns must be 1 or 2")
-    if not isinstance(layout_columns, int):
-        raise ValueError("layout_columns must be 1 or 2")
+
     save_as = save_as.upper()
+
     if save_as not in {"PNG", "PDF", "HTML"}:
         raise ValueError("save_as must be PNG, PDF, or HTML")
-    root = Path(output_dir) if output_dir is not None else Path.cwd() / "output"
+
+    root = Path(output_dir) if output_dir else Path.cwd() / "output"
+
     if isinstance(source, MultiGasData):
         data = source
-        if dataset_type is not None and DatasetType(dataset_type) != data.dataset_type:
+        if dataset_type and DatasetType(dataset_type) != data.dataset_type:
             raise DatasetError("Supplied dataset_type conflicts with MultiGasData type")
     else:
         if dataset_type is None:
@@ -203,27 +271,34 @@ def plot_columns(
             output_dir=root,
             verbose=verbose,
         )
+
     check_columns_exist(names, data.df.columns.tolist())
-    nonnumeric: list[str] = []
+    non_numerics: list[str] = []
+
     for name in names:
         series: pd.Series = data.df[name]
         if not bool(series.isna().all()) and (
             not is_numeric_dtype(series) or is_complex_dtype(series)
         ):
-            nonnumeric.append(name)
-    if nonnumeric:
+            non_numerics.append(name)
+
+    if non_numerics:
         raise ColumnError(
-            f"Nonnumeric columns: {nonnumeric}. Select real numeric columns or "
+            f"Non-numeric columns: {non_numerics}. Select real numeric columns or "
             "convert their readings to numbers before plotting."
         )
+
     frame = _select_dates(data.df, start_date, end_date)[names].copy()
+
     for name in names:
         values: pd.Series = pd.to_numeric(frame[name], errors="coerce")
         values = values.astype(float)
         frame[name] = values.where(np.isfinite(values))
+
     columns = min(layout_columns, len(names))
     path = root / "figures" / f"{data.basename}-columns.{save_as.lower()}"
     text = _caption(data, frame)
+
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if save_as == "HTML":
@@ -243,7 +318,16 @@ def _render_static(
     width: float | None = None,
     height: float | None = None,
 ) -> None:
-    """Render a variable panel grid with a reserved, wrapped caption band."""
+    """Render a static panel grid with a reserved caption band.
+
+    Args:
+        frame (pd.DataFrame): Finite observations to render by column.
+        path (Path): Destination PNG or PDF path.
+        columns (int): Number of panel columns.
+        text (str): Figure caption.
+        width (float | None, optional): Whole-figure width in millimetres.
+        height (float | None, optional): Whole-figure height in millimetres.
+    """
     import matplotlib
 
     matplotlib.use("Agg", force=True)
@@ -254,7 +338,7 @@ def _render_static(
 
     from multigas.plot.dimensions import check_static_space, check_static_artists
 
-    custom_size = width is not None or height is not None
+    custom_size = width or height is not None
     width = (280 if width is None else width) / 25.4
     rows = ceil(len(frame.columns) / columns)
     wrapped = fill(
@@ -265,9 +349,11 @@ def _render_static(
     )
     caption_inches = (wrapped.count("\n") + 1) * 6.2 * 1.25 / 72 + 0.15
     height = rows * 1.4 + 0.65 + caption_inches if height is None else height / 25.4
+
     if custom_size:
         check_static_space(width, height, rows, columns, caption_inches)
     bottom = caption_inches / height + (0.025 if custom_size else 0)
+
     with (
         plt.rc_context(
             {
@@ -302,6 +388,7 @@ def _render_static(
                 rect=(0.015, bottom, 0.97, 0.93 - bottom),
             ),
         )
+
         try:
             axes = cast(list["Axes"], grid.ravel().tolist())
             dense = len(frame) > 1000
@@ -385,7 +472,16 @@ def _render_html(
     width: float | None = None,
     height: float | None = None,
 ) -> None:
-    """Render linked datetime panels with finite-value hover and a caption."""
+    """Render linked datetime panels with hover values and a caption.
+
+    Args:
+        frame (pd.DataFrame): Finite observations to render by column.
+        path (Path): Destination HTML path.
+        columns (int): Number of panel columns.
+        text (str): Figure caption.
+        width (float | None, optional): Outer width in millimetres.
+        height (float | None, optional): Outer height in millimetres.
+    """
     from bokeh.embed import file_html
     from bokeh.models import Div, Title, Range1d, HoverTool
     from bokeh.layouts import column, gridplot
@@ -396,6 +492,7 @@ def _render_html(
     pad = max((end - start) * 0.015, pd.Timedelta(seconds=1))
     shared = Range1d(start=start - pad, end=end + pad)
     plots = []
+
     for i, name in enumerate(frame.columns):
         label, color = _series_style(name)
         series: pd.Series = frame[name]
@@ -444,13 +541,16 @@ def _render_html(
         else:
             plot.xaxis.major_label_text_font_size = "0px"
         plots.append(plot)
+
     layout = column(
         Div(text=f"<h3>{escape(path.stem)}</h3>"),
         gridplot(plots, ncols=columns),
         Div(text=f"<p style='max-width:1100px'>{escape(text)}</p>"),
     )
-    if width is not None or height is not None:
+
+    if width or height is not None:
         from multigas.plot.dimensions import size_html
 
         layout = size_html(plots, path.stem, text, columns, width, height, 1130, 220)
+
     path.write_text(file_html(layout, INLINE, path.stem), encoding="utf-8")

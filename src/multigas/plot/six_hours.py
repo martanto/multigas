@@ -1,4 +1,8 @@
-"""Six-hour multi-gas plot layout and renderers."""
+"""Define the six-hour multi-gas layout and renderers.
+
+Example:
+    >>> use_log, lower, upper = y_axis(series.dropna(), True, log_scale=True)
+"""
 
 from typing import NamedTuple, cast
 from pathlib import Path
@@ -12,7 +16,20 @@ from multigas.data.multigas_data import MultiGasData
 
 
 class Panel(NamedTuple):
-    """One single-series panel of the six-hour layout."""
+    """Describe one single-series panel in the six-hour layout.
+
+    Attributes:
+        label (str): Mathtext title used by static renderers.
+        html_label (str): Unicode title used by the HTML renderer.
+        column (str): Source DataFrame column.
+        color (str): Hexadecimal series color.
+        is_ratio (bool): Whether the series is a gas ratio.
+
+    Example:
+        >>> panel = Panel("CO2", "CO₂", "Avg_CO2", "#9D2823", False)
+        >>> panel.column
+        'Avg_CO2'
+    """
 
     label: str  # Mathtext title used by the PNG / PDF renderer.
     html_label: str  # Unicode title used by the HTML renderer.
@@ -39,6 +56,7 @@ PANELS = [
     Panel(r"$\mathbf{H_2S}$", "H₂S", "Avg_H2S", "#9C792C", False),
     Panel(r"$\mathbf{H_2O}$", "H₂O", "Avg_H2O", "#75503E", False),
 ]
+
 # Panel (j): (column, mathtext label, Unicode label, color, mpl marker, bokeh marker).
 # Orange and blue distinguish the two overlaid proportions.
 PROPORTIONS = [
@@ -73,7 +91,7 @@ def trend(values: pd.Series) -> pd.Series | None:
     across data gaps instead of bridging them.
 
     Args:
-        values: Non-null readings indexed by a ``DatetimeIndex``.
+        values (pd.Series): Non-null readings indexed by a ``DatetimeIndex``.
 
     Returns:
         pd.Series | None: Daily trend stamped at midday (NaN inside gaps), or
@@ -84,10 +102,13 @@ def trend(values: pd.Series) -> pd.Series | None:
     """
     if values.empty:
         return None
+
     daily = values.resample("1D").median()
     rolled = daily.rolling(TREND_DAYS, center=True, min_periods=TREND_MIN_DAYS).median()
+
     if rolled.notna().sum() < 2:
         return None
+
     rolled.index = cast(pd.DatetimeIndex, rolled.index) + pd.Timedelta(hours=12)
     return rolled
 
@@ -103,9 +124,10 @@ def y_axis(
     handful of faulty readings cannot flatten the rest of the record.
 
     Args:
-        values: Non-null, non-empty readings.
-        is_ratio: Whether the series is a dimensionless gas ratio.
-        log_scale: Request log axes for positive ratios; default is linear.
+        values (pd.Series): Non-null, non-empty readings.
+        is_ratio (bool): Whether the series is a dimensionless gas ratio.
+        log_scale (bool, optional): Whether positive ratios use a log axis.
+            Defaults to ``False``.
 
     Returns:
         tuple[bool, float, float]: ``(use_log, lower, upper)`` axis settings.
@@ -118,15 +140,19 @@ def y_axis(
     low, high = float(scaled.min()), float(scaled.max())
     core_low, core_high = (float(q) for q in scaled.quantile([0.01, 0.99]))
     span = core_high - core_low
+
     if span > 0:
         if core_low - low > 2 * span:
             low = core_low
         if high - core_high > 2 * span:
             high = core_high
+
     pad = 0.07 * (high - low) or max(abs(high), 1.0) * 0.05
     low, high = low - pad, high + pad
+
     if use_log:
         return True, float(10**low), float(10**high)
+
     return False, low, high
 
 
@@ -134,7 +160,7 @@ def gaps(index: pd.Index) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
     """Find periods longer than ``GAP_DAYS`` without any record.
 
     Args:
-        index: Sorted record timestamps of the plotted window.
+        index (pd.Index): Sorted record timestamps of the plotted window.
 
     Returns:
         list[tuple[pd.Timestamp, pd.Timestamp]]: ``(last record before, first
@@ -152,8 +178,8 @@ def log_ticks(lower: float, upper: float) -> list[float]:
     """List readable major ticks for a log axis.
 
     Args:
-        lower: Positive lower axis limit.
-        upper: Upper axis limit.
+        lower (float): Positive lower axis limit.
+        upper (float): Upper axis limit.
 
     Returns:
         list[float]: Decade ticks, plus 2x and 5x ticks when the range covers
@@ -170,16 +196,19 @@ def log_ticks(lower: float, upper: float) -> list[float]:
 
 
 def caption(
-    data: MultiGasData, frame: pd.DataFrame, off_scale_note: str,
+    data: MultiGasData,
+    frame: pd.DataFrame,
+    off_scale_note: str,
     log_scale: bool = False,
 ) -> str:
     """Build the explanatory caption shared by every renderer.
 
     Args:
-        data: Dataset being plotted.
-        frame: Non-empty rows of the plotted window.
-        off_scale_note: Renderer-specific sentence about off-axis values.
-        log_scale: Whether log axes were requested for positive ratios.
+        data (MultiGasData): Dataset being plotted.
+        frame (pd.DataFrame): Non-empty rows of the plotted window.
+        off_scale_note (str): Renderer-specific sentence about off-axis values.
+        log_scale (bool, optional): Whether positive ratios use logarithmic
+            axes. Defaults to ``False``.
 
     Returns:
         str: Single-paragraph caption text.
@@ -193,6 +222,7 @@ def caption(
         if gaps(frame.index)
         else ""
     )
+
     # A zero or negative SO2 baseline undermines every SO2-derived quantity.
     so2_note = (
         "Median SO2 in this window is at or below zero (sensor baseline), so "
@@ -200,10 +230,13 @@ def caption(
         if frame["Avg_SO2"].median() <= 0
         else ""
     )
+
     scale_note = (
         "logarithmic axes where all readings are positive, otherwise linear"
-        if log_scale else "linear axes"
+        if log_scale
+        else "linear axes"
     )
+
     return (
         f"Six-hour observations from {data.basename}, {start:%Y-%m-%d} to "
         f"{end:%Y-%m-%d}. Panels (a)-(e) show gas ratios (dimensionless), on "
@@ -218,7 +251,11 @@ def caption(
 
 
 def render(
-    data: MultiGasData, start: pd.Timestamp, end: pd.Timestamp, path: Path, save_as: str,
+    data: MultiGasData,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    path: Path,
+    save_as: str,
     columns: int = 2,
     width: float | None = None,
     height: float | None = None,
@@ -227,42 +264,66 @@ def render(
     """Render one date window using the requested backend.
 
     Args:
-        data: Loaded dataset with the required six-hour plot columns.
-        start: Inclusive start timestamp.
-        end: Inclusive end timestamp.
-        path: Destination file path.
-        save_as: Renderer format, ``PNG``, ``PDF``, or ``HTML``.
-        columns: Number of panel columns, 1 or 2.
-        width: Optional whole-figure width in mm.
-        height: Optional whole-figure height in mm.
-        log_scale: Use log axes for positive ratios; default is linear.
-
-    Raises:
-        PlotError: If the window is empty or the renderer fails.
+        data (MultiGasData): Dataset with the required six-hour columns.
+        start (pd.Timestamp): Inclusive start timestamp.
+        end (pd.Timestamp): Inclusive end timestamp.
+        path (Path): Destination file path.
+        save_as (str): Renderer format: ``PNG``, ``PDF``, or ``HTML``.
+        columns (int, optional): Number of panel columns, ``1`` or ``2``.
+            Defaults to ``2``.
+        width (float | None, optional): Whole-figure width in millimetres.
+        height (float | None, optional): Whole-figure height in millimetres.
+        log_scale (bool, optional): Whether positive ratios use logarithmic
+            axes. Defaults to ``False``.
 
     Returns:
         Path: The saved figure path.
+
+    Raises:
+        PlotError: If the window is empty or the renderer fails.
 
     Example:
         >>> render(data, data.df.index.min(), data.df.index.max(), path, "PNG")
     """
     frame = data.df.loc[start:end]
+
     if frame.empty:
         raise PlotError(f"No data available in plot period {start} to {end}")
+
     try:
         if save_as in {"PNG", "PDF"}:
             _render_static(
-                data, frame, start, end, path, save_as, columns, width, height, log_scale
+                data,
+                frame,
+                start,
+                end,
+                path,
+                save_as,
+                columns,
+                width,
+                height,
+                log_scale,
             )
         else:
-            _render_html(data, frame, start, end, path, columns, width, height, log_scale)
+            _render_html(
+                data, frame, start, end, path, columns, width, height, log_scale
+            )
     except Exception as exc:
         raise PlotError(f"Could not render {save_as} plot {path}: {exc}") from exc
+
     return path
 
 
 def _minor_log_label(value: float, _position: float) -> str:
-    """Label only the 2x and 5x minor ticks of a log axis."""
+    """Label only the 2x and 5x minor ticks of a log axis.
+
+    Args:
+        value (float): Tick value.
+        _position (float): Tick position supplied by Matplotlib.
+
+    Returns:
+        str: Formatted tick value, or an empty string for other ticks.
+    """
     if value <= 0:
         return ""
     digit = round(value / 10 ** np.floor(np.log10(value)))
@@ -281,7 +342,21 @@ def _render_static(
     height: float | None = None,
     log_scale: bool = False,
 ) -> None:
-    """Render the ten-panel figure to PNG or vector PDF with matplotlib."""
+    """Render the ten-panel figure to PNG or vector PDF.
+
+    Args:
+        data (MultiGasData): Source dataset and provenance.
+        frame (pd.DataFrame): Selected six-hour observations.
+        start (pd.Timestamp): Inclusive start timestamp.
+        end (pd.Timestamp): Inclusive end timestamp.
+        path (Path): Destination PNG or PDF path.
+        save_as (str): Static output format, ``PNG`` or ``PDF``.
+        columns (int, optional): Number of panel columns. Defaults to ``2``.
+        width (float | None, optional): Whole-figure width in millimetres.
+        height (float | None, optional): Whole-figure height in millimetres.
+        log_scale (bool, optional): Whether positive ratios use logarithmic
+            axes. Defaults to ``False``.
+    """
     import matplotlib
 
     matplotlib.use("Agg", force=True)
@@ -295,12 +370,14 @@ def _render_static(
 
     from multigas.plot.dimensions import check_static_space, check_static_artists
 
-    custom_size = width is not None or height is not None
+    custom_size = width or height is not None
     width = (FIGURE_SIZE_MM[0] if width is None else width) / 25.4
-    height = (FIGURE_SIZE_MM[1] * (2 if columns == 1 else 1)
-              if height is None else height) / 25.4
+    height = (
+        FIGURE_SIZE_MM[1] * (2 if columns == 1 else 1) if height is None else height
+    ) / 25.4
     caption_size = 6.2
     spans = gaps(frame.index)
+
     text = fill(
         caption(
             data,
@@ -311,15 +388,20 @@ def _render_static(
         width=max(1, int(width * 138 / caption_size)),
         break_on_hyphens=False,
     )
+
     caption_height = (text.count("\n") + 1) * caption_size * 1.25 / (height * 72)
     bottom = caption_height + 0.03
+
     if custom_size:
-        check_static_space(width, height, 10 // columns, columns,
-                           caption_height * height)
+        check_static_space(
+            width, height, 10 // columns, columns, caption_height * height
+        )
+
     # Rect is (left, bottom, width, height); the caption sits in the bottom band.
     engine = ConstrainedLayoutEngine(
         hspace=0.18, wspace=0.06, rect=(0.015, bottom, 0.95, 0.955 - bottom)
     )
+
     dense = len(frame) > 1000
     point_style = {
         "s": 3.5 if dense else 6,
@@ -578,7 +660,20 @@ def _render_html(
     height: float | None = None,
     log_scale: bool = False,
 ) -> None:
-    """Render the ten-panel figure to interactive HTML with Bokeh."""
+    """Render the ten-panel figure to interactive HTML.
+
+    Args:
+        data (MultiGasData): Source dataset and provenance.
+        frame (pd.DataFrame): Selected six-hour observations.
+        start (pd.Timestamp): Inclusive start timestamp.
+        end (pd.Timestamp): Inclusive end timestamp.
+        path (Path): Destination HTML path.
+        columns (int, optional): Number of panel columns. Defaults to ``2``.
+        width (float | None, optional): Outer width in millimetres.
+        height (float | None, optional): Outer height in millimetres.
+        log_scale (bool, optional): Whether positive ratios use logarithmic
+            axes. Defaults to ``False``.
+    """
     from bokeh.models import (
         Div,
         Range1d,
@@ -724,11 +819,21 @@ def _render_html(
         "reach them.",
         log_scale=log_scale,
     )
-    if width is not None or height is not None:
+    if width or height is not None:
         from multigas.plot.dimensions import size_html
 
-        save(size_html(plots, f"{data.basename} | {period}", text, columns,
-                       width, height, columns * 636 + 30, 212))
+        save(
+            size_html(
+                plots,
+                f"{data.basename} | {period}",
+                text,
+                columns,
+                width,
+                height,
+                columns * 636 + 30,
+                212,
+            )
+        )
         return
     save(
         column(
