@@ -38,10 +38,10 @@ def plot_completeness(
 
     Args:
         filepath (Path | str): Path to the completeness CSV.
-        title (str | None): Figure title. Defaults to the CSV file stem
-            when ``None``.
-        verbose (bool): Log the saved figure path at ``INFO``. Defaults
-            to ``False``.
+        title (str | None, optional): Figure title. Defaults to the CSV file
+            stem.
+        verbose (bool, optional): Whether to log the saved path at ``INFO``.
+            Defaults to ``False``.
 
     Returns:
         Path | None: Path of the saved PNG, or ``None`` if plotting
