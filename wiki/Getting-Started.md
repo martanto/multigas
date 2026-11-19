@@ -260,6 +260,21 @@ percentage). Next to the daily folder it also writes:
   a `WARNING`);
 * `<source_slug>.json` — the raw stats list (when `return_as_list=True`).
 
+For the standard normalized, sequential workflow, the CLI performs the same
+operation directly from a source file:
+
+```bash
+uv run multigas extract data/site_a.dat --dataset-type 1min
+uv run multigas extract data/site_a.dat --dataset-type 1min \
+  --start-date 2026-01-01 --end-date 2026-01-31 --json
+```
+
+Both date bounds are optional and inclusive. The CLI accepts `1s`, `2s`,
+`1min`, `6h`, and `zero`; `span` and `wx` are unavailable because their daily
+completeness totals are undefined. It overwrites daily files in the selected
+range and replaces the source completeness summary, but does not remove daily
+files outside that range. See the [CLI Reference](CLI-Reference.md#multigas-extract).
+
 ```python
 # Write daily CSVs under <cwd>/output/daily/<DatasetType.label>/<source_slug>/
 # and <source_slug>-completeness.csv / .png one level up

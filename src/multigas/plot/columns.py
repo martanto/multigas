@@ -29,6 +29,7 @@ from multigas.plot.six_hours import (
 )
 from multigas.core.exceptions import PlotError, ColumnError, DatasetError
 from multigas.plot.dimensions import validate_dimension
+from multigas.utils.dataframe import select_date_range as _select_dates
 from multigas.utils.validation import check_columns_exist
 from multigas.data.multigas_data import MultiGasData
 
@@ -63,62 +64,6 @@ def parse_column_names(column_names: str | Sequence[str]) -> list[str]:
         )
 
     return list(dict.fromkeys(names))
-
-
-def _select_dates(
-    frame: pd.DataFrame,
-    start_date: str | pd.Timestamp | None,
-    end_date: str | pd.Timestamp | None,
-) -> pd.DataFrame:
-    """Apply inclusive bounds and expand a date-only end to its full day.
-
-    Args:
-        frame (pd.DataFrame): Time-indexed observations to filter.
-        start_date (str | pd.Timestamp | None): Inclusive lower date bound.
-        end_date (str | pd.Timestamp | None): Inclusive upper date bound.
-
-    Returns:
-        pd.DataFrame: Chronologically sorted rows within the selected bounds.
-
-    Raises:
-        DatasetError: If the index or date range is invalid, or no rows match.
-    """
-    index = frame.index
-
-    if not isinstance(index, pd.DatetimeIndex) or index.hasnans:
-        raise DatasetError("Plot data must have a valid DatetimeIndex")
-
-    try:
-        start = pd.Timestamp(start_date) if start_date else None
-        end = pd.Timestamp(end_date) if end_date else None
-
-        if (start and pd.isna(start)) or (end and pd.isna(end)):
-            raise ValueError("Date bounds must not be NaT")
-
-        if isinstance(end_date, str) and len(end_date.strip()) == 10:
-            end = pd.Timestamp(end_date) + pd.DateOffset(days=1) - pd.Timedelta(1, "ns")
-
-        # Treat naive bounds as local dates for a timezone-aware input.
-        timezone = index.tz
-
-        if timezone:
-            if start and start.tzinfo is None:
-                start = start.tz_localize(timezone)
-            if end and end.tzinfo is None:
-                end = end.tz_localize(timezone)
-
-        if start and end and start > end:
-            raise ValueError("start_date must be on or before end_date")
-
-        selected = frame.sort_index().loc[start:end]
-    except (ValueError, TypeError, OverflowError) as exc:
-        raise DatasetError(f"Invalid date range: {exc}") from exc
-
-    if selected.empty:
-        raise DatasetError(
-            "No records in the selected date range; choose overlapping dates."
-        )
-    return selected
 
 
 def _series_style(name: str) -> tuple[str, str]:
@@ -245,7 +190,9 @@ def plot_columns(
     height = validate_dimension(height, "height")
     names = parse_column_names(column_names)
 
-    if isinstance(layout_columns, bool) or layout_columns not in (1, 2):
+    if not isinstance(layout_columns, int) or isinstance(
+        layout_columns, bool
+    ) or layout_columns not in (1, 2):
         raise ValueError("layout_columns must be 1 or 2")
 
     save_as = save_as.upper()
