@@ -37,7 +37,7 @@ dataloggers. Every dataset flowing through the package is inherently
 multigas/
 ├── src/multigas/                # Package (src layout)
 │   ├── __init__.py              # Public exports: read_file, DataLoader, version
-│   ├── cli/                     # normalize, standard plot and plot columns CLI
+│   ├── cli/                     # normalize, extract, standard plot and columns CLI
 │   ├── logging.py               # Preconfigured loguru logger + toggles
 │   ├── config/                  # Configuration (stub)
 │   ├── core/
@@ -63,7 +63,7 @@ multigas/
 │       ├── path.py              # ensure_dir
 │       ├── cache.py             # get_cache_key / get_cache_path / save_cache / load_cache / clear_cache
 │       ├── validation.py        # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-│       └── dataframe.py         # to_datetime_index, get_dates, convert_to_wind_*, calculate_completeness, count_csv_rows
+│       └── dataframe.py         # datetime conversion/range selection, wind helpers, completeness
 ├── tests/                       # Pytest suite (and where all test output belongs)
 ├── wiki/                        # This documentation
 ├── changelogs/                  # Daily task log (git-ignored, local only)
@@ -80,7 +80,7 @@ multigas/
 
 ```mermaid
 flowchart TD
-    A["Source file<br/>(TOA5 / CSV)"] --> CLI["multigas normalize<br/>Click + Rich"]
+    A["Source file<br/>(TOA5 / CSV)"] --> CLI["multigas normalize / extract<br/>Click + Rich"]
     CLI --> B["read_file()<br/>multigas.core.io"]
     A --> B
     A --> C["DataLoader.load()<br/>multigas.data.loader"]
@@ -103,6 +103,8 @@ Public entry points live at the top of the package:
 - **`multigas.DataLoader`** — full-control loader with cache management.
 - **`multigas normalize`** — terminal command to normalize a source file and
   write its normalized CSV under the output directory.
+- **`multigas extract`** — terminal command to normalize a source, optionally
+  select inclusive dates, and write daily CSVs plus completeness outputs.
 
 Both return a **`MultiGasData`** — a class (from
 `multigas.data.multigas_data`) that wraps the loaded DataFrame together
@@ -156,6 +158,7 @@ uv sync                                     # install deps (including dev)
 uv run main.py                              # run entry point
 uv run multigas --help                      # CLI commands
 uv run multigas normalize data/site_a.dat --dataset-type 1min
+uv run multigas extract data/site_a.dat --dataset-type 1min
 uv run multigas plot data/site_a.csv --dataset-type 6h
 uv run ruff check --fix src/                # lint + auto-fix
 uvx ty check src/                           # type check

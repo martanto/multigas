@@ -7,6 +7,8 @@ loader:
   :class:`pandas.DatetimeIndex`.
 - :func:`get_dates` returns the min/max index dates alongside their string
   representations.
+- :func:`select_date_range` applies inclusive date bounds to a time-indexed
+  DataFrame.
 - :func:`convert_to_wind_direction` maps a single compass bearing to its sector
   label using one of the ``WIND_DIRECTIONS_*`` tables in
   :mod:`multigas.core.constant`.
@@ -27,7 +29,7 @@ import pandas as pd
 from multigas.core import DatasetType
 from multigas.logging import logger
 from multigas.core.constant import WIND_QUADRANTS_8
-from multigas.core.exceptions import ValidationError
+from multigas.core.exceptions import DatasetError, ValidationError
 from multigas.utils.validation import validate_dataframe_column
 
 
@@ -101,6 +103,78 @@ def get_dates(df: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp, str, str]:
     end_date_str: str = end_date.strftime("%Y-%m-%d")
 
     return start_date, end_date, start_date_str, end_date_str
+
+
+def select_date_range(
+    frame: pd.DataFrame,
+    start_date: str | pd.Timestamp | None = None,
+    end_date: str | pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Select rows within inclusive datetime bounds.
+
+    A date-only string for ``end_date`` includes that entire calendar day.
+    Naive bounds are localized to the timezone of a timezone-aware index.
+
+    Args:
+        frame (pd.DataFrame): Time-indexed observations to filter.
+        start_date (str | pd.Timestamp | None, optional): Inclusive lower
+            bound. Defaults to ``None``.
+        end_date (str | pd.Timestamp | None, optional): Inclusive upper bound.
+            Date-only strings include the full day. Defaults to ``None``.
+
+    Returns:
+        pd.DataFrame: Chronologically sorted rows within the selected bounds.
+
+    Raises:
+        DatasetError: If the index or bounds are invalid, the range is
+            reversed, or no rows match.
+
+    Example:
+        >>> index = pd.date_range("2025-01-01", periods=48, freq="h")
+        >>> frame = pd.DataFrame({"value": range(48)}, index=index)
+        >>> len(select_date_range(frame, end_date="2025-01-01"))
+        24
+    """
+    index = frame.index
+
+    if not isinstance(index, pd.DatetimeIndex) or index.hasnans:
+        raise DatasetError("Data must have a valid DatetimeIndex")
+
+    try:
+        start = pd.Timestamp(start_date) if start_date is not None else None
+        end = pd.Timestamp(end_date) if end_date is not None else None
+
+        if (start is not None and pd.isna(start)) or (
+            end is not None and pd.isna(end)
+        ):
+            raise ValueError("Date bounds must not be NaT")
+
+        if isinstance(end_date, str) and len(end_date.strip()) == 10:
+            end = (
+                pd.Timestamp(end_date.strip())
+                + pd.DateOffset(days=1)
+                - pd.Timedelta(1, "ns")
+            )
+
+        timezone = index.tz
+        if timezone is not None:
+            if start is not None and start.tzinfo is None:
+                start = start.tz_localize(timezone)
+            if end is not None and end.tzinfo is None:
+                end = end.tz_localize(timezone)
+
+        if start is not None and end is not None and start > end:
+            raise ValueError("start_date must be on or before end_date")
+
+        selected = frame.sort_index().loc[start:end]
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise DatasetError(f"Invalid date range: {exc}") from exc
+
+    if selected.empty:
+        raise DatasetError(
+            "No records in the selected date range; choose overlapping dates."
+        )
+    return selected
 
 
 def convert_to_wind_direction(

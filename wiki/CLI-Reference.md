@@ -11,6 +11,7 @@ package, then run commands with `uv run multigas ...`.
 |----------------------|-----------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------------------|
 | `multigas`           | Root command group; provides version reporting and command discovery.                   | [`src/multigas/cli/main.py`](../src/multigas/cli/main.py)                             | [Root options](#multigas)                    |
 | `multigas normalize` | Load and normalize an input data file, then write a normalized CSV and print a summary. | [`src/multigas/cli/commands/normalize.py`](../src/multigas/cli/commands/normalize.py) | [Arguments and options](#multigas-normalize) |
+| `multigas extract` | Normalize an input file and extract one CSV per calendar day. | [`src/multigas/cli/commands/extract.py`](../src/multigas/cli/commands/extract.py) | [Arguments and options](#multigas-extract) |
 | `multigas plot` | Render six-hour multi-gas plots in PNG, PDF or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot) |
 | `multigas plot columns` | Render selected numeric time-series columns in PNG, PDF or HTML. | [`src/multigas/cli/commands/plot.py`](../src/multigas/cli/commands/plot.py) | [Arguments and options](#multigas-plot-columns) |
 
@@ -58,6 +59,43 @@ The JSON keys are `input`, `normalized_csv`, `rows`, `columns`, and
 | `--overwrite`          | flag (`bool`)                                          | `False`                         | Reload even when a cache entry exists.                          |
 | `--verbose`            | flag (`bool`)                                          | `False`                         | Emit informational loading logs.                                |
 | `--json`               | flag (`bool`)                                          | `False`                         | Print the summary as JSON instead of a Rich table.               |
+
+## `multigas extract`
+
+Normalize a source file and delegate daily output generation to
+`MultiGasData.extract_daily()`:
+
+```bash
+uv run multigas extract data/site_a.dat --dataset-type 1min
+uv run multigas extract data/site_a.dat --dataset-type 1min \
+  --start-date 2026-01-01 --end-date 2026-01-31
+uv run multigas extract data/site_a.dat --dataset-type 1min --json
+```
+
+Without date options, the complete normalized frame is extracted. Either date
+bound may be supplied independently; both are inclusive and must use
+`YYYY-MM-DD`. The selected frame becomes only the dataset's working frame
+before extraction. Existing daily files outside a selected range are not
+removed, while the completeness CSV is replaced with the current selection's
+summary.
+
+The command keeps `extract_daily()` defaults: sequential processing,
+overwriting selected daily CSVs, and generating both the completeness CSV and
+PNG. It reports `input`, `dataset_type`, effective `start_date` and `end_date`,
+`extracted_days`, `extracted_records`, `daily_directory`, and
+`completeness_csv`. Pass `--json` for those keys as a JSON object; otherwise a
+Rich summary panel is printed.
+
+| Argument / option | Type | Default | Description |
+|---|---|---|---|
+| `INPUT_PATH` | existing file path | required | Source CSV or TOA5 data file. |
+| `--dataset-type` | `1s`, `2s`, `1min`, `6h`, `zero` | required | Dataset type with a defined daily completeness total. |
+| `--start-date` | `YYYY-MM-DD` | `None` | Inclusive first calendar day. |
+| `--end-date` | `YYYY-MM-DD` | `None` | Inclusive last calendar day, including all its observations. |
+| `--output-dir` | directory path | `None` → `<cwd>/output` | Root for normalized, cache, daily, and completeness outputs. |
+| `--index-col` | string | `TIMESTAMP` | Timestamp column promoted to the datetime index. |
+| `--verbose` | flag | `False` | Emit informational loading and extraction logs. |
+| `--json` | flag | `False` | Print the result fields as JSON instead of a Rich panel. |
 
 ## `multigas plot`
 

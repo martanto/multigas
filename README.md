@@ -146,6 +146,26 @@ complete option list. The command requires `--dataset-type` and supports
 See the [CLI Reference](wiki/CLI-Reference.md) for all arguments, defaults,
 types, and source locations.
 
+### Command-line daily extraction
+
+Use `multigas extract` to normalize a source and write its observations as
+one CSV per calendar day. Extraction supports the fixed-interval dataset
+types and `zero`; `span` and `wx` are excluded because they have no defined
+daily completeness total.
+
+```bash
+uv run multigas extract data/site_a.dat --dataset-type 1min
+uv run multigas extract data/site_a.dat --dataset-type 1min \
+  --start-date 2026-01-01 --end-date 2026-01-31 --json
+```
+
+Date bounds are inclusive, and either may be supplied independently. Output
+uses the existing `extract_daily` layout under
+`<output-dir>/daily/<dataset-type-label>/`; the command reports the effective
+dates, extracted day and record counts, daily directory, and completeness CSV.
+See the [CLI Reference](wiki/CLI-Reference.md#multigas-extract) for every
+option.
+
 ### Multi-gas plotting
 
 Both plotting commands support `--width` and `--height` in millimetres for
@@ -320,7 +340,7 @@ The package uses the `src/` layout. Public entry points are re-exported from
 ```
 src/multigas/
 ├── __init__.py          # Exposes read_file, DataLoader, version metadata
-├── cli/                 # Click console interface (`multigas normalize`)
+├── cli/                 # Click CLI (`normalize`, `extract`, and `plot`)
 ├── logging.py           # Loguru logger + enable/disable/level helpers
 ├── config/              # Configuration (stub)
 ├── core/
@@ -345,7 +365,7 @@ src/multigas/
     ├── path.py          # ensure_dir helper
     ├── cache.py         # get_cache_key / get_cache_path / save_cache / load_cache / clear_cache
     ├── validation.py    # check_columns_exist, validate_dataframe_column, check_sampling_consistency
-    └── dataframe.py     # to_datetime_index, get_dates, convert_to_wind_direction, convert_to_wind_quadrant, calculate_completeness, count_csv_rows
+    └── dataframe.py     # datetime indexing/range selection, wind conversion, completeness, CSV row counts
 ```
 
 ### Core types (`multigas.core.types`)
